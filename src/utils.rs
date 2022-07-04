@@ -67,8 +67,8 @@ impl<'a> Iterator for SplitStrings<'a> {
 /// the string will not be split on that space.
 /// Returns an iterator over the split pieces of the string,
 /// starting from the front and going to the end.
-/// Segments of contiguous (or just one) unquoted spaces will not be included
-/// in the substrings returned by the iterator.
+/// The substrings returned by the iterator will not contain any
+/// unquoted spaces.
 pub fn split_at_unquoted_spaces(string: &str) -> SplitStrings {
     SplitStrings {
         internal_iter: string.char_indices(),

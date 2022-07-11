@@ -7,6 +7,18 @@
 //!     3. Runs kexec -l
 //!     4. Runs systemctl kexec
 
-fn main() -> anyhow::Result<()> {
-    usb_boot_kexec::run()
+use std::env;
+
+use anyhow::Result;
+use usb_boot_kexec::{CmdlineTransformParameters, Config};
+
+fn main() -> Result<()> {
+    let config = usb_boot_kexec::parse_args(env::args(), CmdlineTransformParameters {
+        additional_args: "--additional_args".to_string(),
+        kernel: "--kernel".to_string(),
+        initrd: "--initrd".to_string(),
+    })?;
+
+    usb_boot_kexec::run(config)?;
+    Ok(())
 }

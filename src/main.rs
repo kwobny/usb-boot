@@ -10,7 +10,7 @@
 use std::env;
 
 use anyhow::Result;
-use usb_boot_kexec::{CmdlineTransformParameters, Config};
+use usb_boot_kexec::CmdlineTransformParameters;
 
 fn main() -> Result<()> {
     let config = usb_boot_kexec::parse_args(env::args(), CmdlineTransformParameters {

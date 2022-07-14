@@ -10,14 +10,14 @@
 use std::env;
 
 use anyhow::Result;
-use usb_boot_kexec::CmdlineTransformParameters;
+use usb_boot_kexec::TransformParameters;
 
 fn main() -> Result<()> {
-    let config = usb_boot_kexec::parse_args(env::args(), CmdlineTransformParameters {
+    let config = usb_boot_kexec::parse_args(env::args(), TransformParameters {
         additional_args: "--additional_args".to_string(),
         kernel: "--kernel".to_string(),
         initrd: "--initrd".to_string(),
-    })?;
+    }.try_into().unwrap())?;
 
     usb_boot_kexec::run(config)?;
     Ok(())

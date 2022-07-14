@@ -2,22 +2,48 @@ mod utils;
 
 use std::{fs, process::Command};
 use anyhow::Result;
-use common::AggregateError;
+use common::{AggregateError, size_based_container::SizeBasedContainer};
 
 pub struct Config {
-    pub transform_parameters: CmdlineTransformParameters,
+    pub transform_parameters: UniqueTransformParameters,
 }
 
-struct KexecArgs {
-    kernel: String,
-    initrd: String,
-    command_line: String,
-}
-
-pub struct CmdlineTransformParameters {
+pub struct TransformParameters {
     pub additional_args: String,
     pub kernel: String,
     pub initrd: String,
+}
+pub struct UniqueTransformParameters(TransformParameters);
+impl TryFrom<TransformParameters> for UniqueTransformParameters {
+    type Error = ();
+    fn try_from(transform_parameters: TransformParameters) -> Result<Self, ()> {
+        if elements_are_unique(&[
+            &transform_parameters.additional_args,
+            &transform_parameters.kernel,
+            &transform_parameters.initrd,
+        ]) {
+            Ok(UniqueTransformParameters(transform_parameters))
+        } else {
+            Err(())
+        }
+    }
+}
+
+/// Tests whether there are any two elements in the slice that are equal
+/// to each other.
+/// Returns true if every element in the slice is unique, i.e. there are no two elements in
+/// the slice that are equal to each other.
+/// Returns false if there are at least two elements in the slice that are equal to each other.
+fn elements_are_unique<T: Eq>(elements: &[T]) -> bool {
+    for base in 0..(elements.len()-1) {
+        let compare_to = &elements[base];
+        for elem in &elements[base+1..] {
+            if *elem == *compare_to {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -31,7 +57,14 @@ pub enum TransformCommandLineError {
         parameter: String,
     },
 }
-fn transform_command_line(command_line: &str, transform_parameters: CmdlineTransformParameters) -> Result<KexecArgs, AggregateError<TransformCommandLineError>> {
+struct KexecArgs {
+    kernel: String,
+    initrd: String,
+    command_line: String,
+}
+fn transform_command_line(command_line: &str, transform_parameters: UniqueTransformParameters) -> Result<KexecArgs, AggregateError<TransformCommandLineError>> {
+    let transform_parameters = transform_parameters.0;
+
     let mut new_cmdline = String::new();
     let mut kernel: Option<&str> = None;
     let mut initrd: Option<&str> = None;
@@ -149,12 +182,16 @@ pub enum ParseArgsError {
     MissingRequiredOption {
         option: String,
     },
+    #[error("multiple options were set to the same value")]
+    MultipleOptionSameValue,
 }
 
 /// This function parses the command line arguments.
 /// There must be three options specified, each setting a particular key.
 /// Each option must be in the form of "key=value" (1 argument) or "key value" (2 arguments).
-pub fn parse_args(args: impl IntoIterator<Item=String>, option_names: CmdlineTransformParameters) -> Result<Config, AggregateError<ParseArgsError>> {
+pub fn parse_args(args: impl IntoIterator<Item=String>, option_names: UniqueTransformParameters) -> Result<Config, AggregateError<ParseArgsError>> {
+    let option_names = option_names.0;
+
     let mut additional_args = None;
     let mut kernel = None;
     let mut initrd = None;
@@ -242,11 +279,18 @@ pub fn parse_args(args: impl IntoIterator<Item=String>, option_names: CmdlineTra
         return Err(aggregate);
     }
 
-    Ok(Config {
-        transform_parameters: CmdlineTransformParameters {
-            additional_args: additional_args.unwrap(),
-            kernel: kernel.unwrap(),
-            initrd: initrd.unwrap(),
-        }
-    })
+    let unique_transform_parameters = TransformParameters {
+        additional_args: additional_args.unwrap(),
+        kernel: kernel.unwrap(),
+        initrd: initrd.unwrap(),
+    }.try_into();
+
+    match unique_transform_parameters {
+        Ok(x) => Ok(Config {
+            transform_parameters: x,
+        }),
+        Err(_) => Err(SizeBasedContainer::from_single(ParseArgsError::MultipleOptionSameValue)
+                      .try_into()
+                      .unwrap()),
+    }
 }

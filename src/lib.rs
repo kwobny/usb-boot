@@ -339,3 +339,28 @@ pub fn parse_args(args: impl IntoIterator<Item=String>, option_names: UniqueTran
                       .unwrap()),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_elements_are_unique() {
+        let test_cases: &[(&[i32], bool)] = &[
+            (&[2, 5, 3], true),
+            (&[2, 2, 3], false),
+            (&[2, 5, 2], false),
+            (&[2, 3, 3], false),
+
+            (&[2, 5, 3, 10], true),
+            (&[4, 4, 4, 4], false),
+        ];
+        for (elements, are_unique) in test_cases {
+            assert_eq!(elements_are_unique(elements), *are_unique);
+        }
+    }
+
+    #[test]
+    fn unique_transform_parameters_try_from() {
+    }
+}

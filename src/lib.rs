@@ -164,20 +164,57 @@ pub fn run(config: Config) -> Result<()> {
     Ok(())
 }
 
+/// Represents an error that occurred while executing the [`parse_args`] function.
 #[derive(thiserror::Error, Debug)]
 pub enum ParseArgsError {
+    /// The key for an option was given, but no value was provided for it.<br>
+    /// This occurs when the option is specified in the form of `key value` (2 arguments),
+    /// but `key` is the last argument and there is no additional argument for the value after that.<br>
+    /// All options must have both a key and value.
+    ///
+    /// # Example
+    ///     --option1 value1 --option2=value2 --option3
+    /// Here, `--option3` is given, but no value is provided for it.
     #[error("the option \"{key}\" was given but no value was provided for it")]
     KeyWithoutValue {
         key: String,
     },
+    /**
+     * An option was given multiple times on the command line. All options should be given exactly
+     * once.
+     *
+     * # Example
+     *     --option1=value1 --option2=value2 --option1=value3
+     * Here, `--option1` is given twice. This is invalid.
+     */
     #[error("the option \"{option}\" was set multiple times")]
     OptionSetMultipleTimes {
         option: String,
     },
+    /**
+     * An argument could not be processed because it was not a known option. All arguments have to
+     * specify options that are one of the 3 fields in the `option_names` parameter.
+     *
+     * # Example
+     *     --option1=value1 --option2=value2 --unknown-option=value3
+     * Assuming none of the fields in the `option_names` parameter of the [`parse_args`] function
+     * contained `--unknown-option`, this command line would be invalid because `--unknown-option`
+     * is not a valid option.
+     */
     #[error("unknown argument: {argument}")]
     UnknownArgument {
         argument: String,
     },
+    /**
+     * A required option was not specified on the command line. All 3 options indicated by the 3
+     * fields of the `option_names` parameter must be specified on the command line.
+     *
+     * # Example
+     *     --additional-args-option=value1 --initrd-option=value2
+     * Assuming the kernel field of the `option_names` parameter is `--kernel-option`, this example
+     * would result in an error because the `--kernel-option` option is not given on the command
+     * line.
+     */
     #[error("the required option \"{option}\" was not provided")]
     MissingRequiredOption {
         option: String,
@@ -186,9 +223,17 @@ pub enum ParseArgsError {
     MultipleOptionSameValue,
 }
 
-/// This function parses the command line arguments.
-/// There must be three options specified, each setting a particular key.
+/// This function parses the command line arguments of this program.
+/// There must be exactly three options specified, with one option for each option name / key in
+/// the `option_names` parameter.
 /// Each option must be in the form of "key=value" (1 argument) or "key value" (2 arguments).
+/// The 3 options are the strings stored in the 3 fields of the `option_names` parameter of
+/// this function.
+///
+/// # Errors:
+///   - All 3 options are required. If one or more of the options are missing, the function raises a
+///     [`MissingRequiredOption`](ParseArgsError::MissingRequiredOption) for each missing option.
+///   - asdf
 pub fn parse_args(args: impl IntoIterator<Item=String>, option_names: UniqueTransformParameters) -> Result<Config, AggregateError<ParseArgsError>> {
     let option_names = option_names.0;
 

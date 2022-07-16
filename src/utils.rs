@@ -89,10 +89,19 @@ mod tests {
         let simple_case = r#"   asdfdji   ewaj"   " dfsfde=5"#;
         let simple_case_expected = ["asdfdji", r#"ewaj"   ""#, "dfsfde=5"];
 
-        for (input, expected) in [
+        let testing_everything = r#"    root=UUID=lolololol  tcp_handler 893s zxvv=289 additional_args="single sysrq_always_on=1   fdsaew kjk" dsfder   kernel=/boot/vmlinuz-asdf --single-quoted='asdei "dcxie     " fjid' enclave="cxerdsd 'fds "ewdsji  " fews' dsfds"  --lol=" xczc"#;
+        let testing_everything_expected = [
+            "root=UUID=lolololol", "tcp_handler", "893s", "zxvv=289", r#"additional_args="single sysrq_always_on=1   fdsaew kjk""#,
+            "dsfder", "kernel=/boot/vmlinuz-asdf", r#"--single-quoted='asdei "dcxie     " fjid'"#, r#"enclave="cxerdsd 'fds "ewdsji"#,
+            r#"" fews' dsfds""#, r#"--lol=" xczc"#,
+        ];
+
+        let test_cases: &[(&str, &[&str])] = &[
             (simple_case, &simple_case_expected),
-        ] {
-            assert_eq!(split_at_unquoted_spaces(input).collect::<Vec<_>>().as_slice(), expected);
+            (testing_everything, &testing_everything_expected),
+        ];
+        for (input, expected) in test_cases {
+            assert_eq!(split_at_unquoted_spaces(input).collect::<Vec<_>>().as_slice(), *expected);
         }
     }
 }

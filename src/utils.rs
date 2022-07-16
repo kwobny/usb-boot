@@ -79,3 +79,20 @@ pub fn split_at_unquoted_spaces(string: &str) -> SplitStrings {
         substring_beginning: Some(0),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_split_at_unquoted_spaces() {
+        let simple_case = r#"   asdfdji   ewaj"   " dfsfde=5"#;
+        let simple_case_expected = ["asdfdji", r#"ewaj"   ""#, "dfsfde=5"];
+
+        for (input, expected) in [
+            (simple_case, &simple_case_expected),
+        ] {
+            assert_eq!(split_at_unquoted_spaces(input).collect::<Vec<_>>().as_slice(), expected);
+        }
+    }
+}

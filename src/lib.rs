@@ -4,6 +4,7 @@ use std::{fs, process::Command};
 use anyhow::Result;
 use common::{AggregateError, size_based_container::SizeBasedContainer};
 
+#[derive(Debug, PartialEq)]
 pub struct Config {
     pub transform_parameters: UniqueTransformParameters,
 }
@@ -168,7 +169,7 @@ pub fn run(config: Config) -> Result<()> {
 }
 
 /// Represents an error that occurred while executing the [`parse_args`] function.
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, PartialEq)]
 pub enum ParseArgsError {
     /// The key for an option was given, but no value was provided for it.<br>
     /// This occurs when the option is specified in the form of `key value` (2 arguments),
@@ -397,19 +398,103 @@ mod tests {
         });
 
         let missing_kernel_command_line = r#"2312 --kernel-lol lol=5 --asdf="tee=4 sasd=1 83      dfds 983=5=das"     see 3 cx=8ijds --see-initrd=--kernel-lol"#;
-        let missing_kernel_expected = Err(AggregateError::try_from(
+        let missing_kernel_expected = Err(
             SizeBasedContainer::from_single(
                 TransformCommandLineError::MissingRequiredParameter {
                     parameter: "--kernel-lol".to_string(),
                 }
-            )
-        ).unwrap());
+            ).try_into().unwrap()
+        );
+
+        let set_multiple_times_command_line = r#"2312 --kernel-lol=tty390=zxcvr lol=5 --see-initrd="tee=4 sasd=1 83      dfds 983=5=das"     see 3 cx=8ijds --see-initrd=--kernel-lol"#;
+        let set_multiple_times_expected = Err(
+            SizeBasedContainer::from_single(
+                TransformCommandLineError::RequiredParameterSetMultipleTimes {
+                    parameter: "--see-initrd".to_string(),
+                }
+            ).try_into().unwrap()
+        );
 
         for (command_line, expected) in [
             (working_command_line, working_expected),
             (missing_kernel_command_line, missing_kernel_expected),
+            (set_multiple_times_command_line, set_multiple_times_expected),
         ] {
             assert_eq!(transform_command_line(command_line, transform_parameters.clone()), expected);
+        }
+    }
+
+    #[test]
+    fn test_parse_args() {
+        let option_names: UniqueTransformParameters = TransformParameters {
+            additional_args: "--add-args".to_string(),
+            kernel: "--popcorn-kernel".to_string(),
+            initrd: "--initramfs".to_string(),
+        }.try_into().unwrap();
+
+        let working_command_line = "--add-args --cpio --popcorn-kernel=--casdf --initramfs --9anime.to";
+        let working_expected = Ok(
+            Config {
+                transform_parameters: TransformParameters {
+                    additional_args: "--cpio".to_string(),
+                    kernel: "--casdf".to_string(),
+                    initrd: "--9anime.to".to_string(),
+                }.try_into().unwrap(),
+            }
+        );
+
+        let excessive_args_command_line = "--add-args --cpio --add-rgs --popcorn-kernel=--casdf --initramfs --9anime.to";
+        let excessive_args_expected = Err(
+            SizeBasedContainer::from_single(
+                ParseArgsError::UnknownArgument {
+                    argument: "--add-rgs".to_string(),
+                }
+            ).try_into().unwrap()
+        );
+
+        let duplicate_option_command_line = "--add-args --cpio --popcorn-kernel=--casdf --add-args hello --initramfs --9anime.to";
+        let duplicate_option_expected = Err(
+            SizeBasedContainer::from_single(
+                ParseArgsError::OptionSetMultipleTimes {
+                    option: "--add-args".to_string(),
+                }
+            ).try_into().unwrap()
+        );
+
+        let key_without_value_command_line = "--add-args --cpio --popcorn-kernel=--casdf --initramfs";
+        let key_without_value_expected = Err(
+            SizeBasedContainer::from_single(
+                ParseArgsError::KeyWithoutValue {
+                    key: "--initramfs".to_string(),
+                }
+            ).try_into().unwrap()
+        );
+
+        let missing_options_command_line = "--popcorn-kernel=--casdf --initramfs --9anime.to";
+        let missing_options_expected = Err(
+            SizeBasedContainer::from_single(
+                ParseArgsError::MissingRequiredOption {
+                    option: "--add-args".to_string(),
+                }
+            ).try_into().unwrap()
+        );
+
+        let same_value_command_line = "--add-args --cpio --popcorn-kernel=--9anime.to --initramfs --9anime.to";
+        let same_value_expected = Err(
+            SizeBasedContainer::from_single(
+                ParseArgsError::MultipleOptionSameValue
+            ).try_into().unwrap()
+        );
+
+        for (command_line, expected) in [
+            (working_command_line, working_expected),
+            (excessive_args_command_line, excessive_args_expected),
+            (duplicate_option_command_line, duplicate_option_expected),
+            (key_without_value_command_line, key_without_value_expected),
+            (missing_options_command_line, missing_options_expected),
+            (same_value_command_line, same_value_expected),
+        ] {
+            assert_eq!(parse_args(command_line.split_whitespace().map(|x| x.to_string()), option_names.clone()), expected);
         }
     }
 }

@@ -8,11 +8,13 @@ pub struct Config {
     pub transform_parameters: UniqueTransformParameters,
 }
 
+#[derive(Clone, PartialEq, Debug)]
 pub struct TransformParameters {
     pub additional_args: String,
     pub kernel: String,
     pub initrd: String,
 }
+#[derive(PartialEq, Debug, Clone)]
 pub struct UniqueTransformParameters(TransformParameters);
 impl TryFrom<TransformParameters> for UniqueTransformParameters {
     type Error = ();
@@ -46,7 +48,7 @@ fn elements_are_unique<T: Eq>(elements: &[T]) -> bool {
     true
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(thiserror::Error, Debug, PartialEq)]
 pub enum TransformCommandLineError {
     #[error("missing required parameter: {parameter}")]
     MissingRequiredParameter {
@@ -57,6 +59,7 @@ pub enum TransformCommandLineError {
         parameter: String,
     },
 }
+#[derive(Debug, PartialEq)]
 struct KexecArgs {
     kernel: String,
     initrd: String,
@@ -362,5 +365,51 @@ mod tests {
 
     #[test]
     fn unique_transform_parameters_try_from() {
+        let unique = TransformParameters {
+            additional_args: "hello".to_string(),
+            kernel: "goodbye".to_string(),
+            initrd: "cheese".to_string(),
+        };
+        let not_unique = TransformParameters {
+            additional_args: "hello".to_string(),
+            kernel: "hello".to_string(),
+            initrd: "cheese".to_string(),
+        };
+
+        assert_eq!(UniqueTransformParameters::try_from(unique.clone()), Ok(UniqueTransformParameters(unique)));
+        assert_eq!(UniqueTransformParameters::try_from(not_unique), Err(()));
+    }
+
+    #[test]
+    fn test_transform_command_line() {
+        let transform_parameters: UniqueTransformParameters = TransformParameters {
+            additional_args: "--asdf".to_string(),
+            kernel: "--kernel-lol".to_string(),
+            initrd: "--see-initrd".to_string(),
+        }.try_into().unwrap();
+
+        let working_command_line = r#"2312 --kernel-lol=tty390=zxcvr lol=5 --asdf="tee=4 sasd=1 83      dfds 983=5=das"     see 3 cx=8ijds --see-initrd=--kernel-lol"#;
+        let working_expected = Ok(KexecArgs {
+            kernel: "tty390=zxcvr".to_string(),
+            initrd: "--kernl-lol".to_string(), // For the moment, this is purposely misspelled
+                                               // to ensure rust tests work correctly.
+            command_line: "2312 lol=5 tee=4 sasd=1 83      dfds 983=5=das see 3 cx=8ijds".to_string(),
+        });
+
+        let missing_kernel_command_line = r#"2312 --kernel-lol lol=5 --asdf="tee=4 sasd=1 83      dfds 983=5=das"     see 3 cx=8ijds --see-initrd=--kernel-lol"#;
+        let missing_kernel_expected = Err(AggregateError::try_from(
+            SizeBasedContainer::from_single(
+                TransformCommandLineError::MissingRequiredParameter {
+                    parameter: "--kernel-lol".to_string(),
+                }
+            )
+        ).unwrap());
+
+        for (command_line, expected) in [
+            (working_command_line, working_expected),
+            (missing_kernel_command_line, missing_kernel_expected),
+        ] {
+            assert_eq!(transform_command_line(command_line, transform_parameters.clone()), expected);
+        }
     }
 }

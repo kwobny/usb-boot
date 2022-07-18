@@ -76,7 +76,7 @@ pub fn split_at_unquoted_spaces(string: &str) -> SplitStrings {
 
         currently_quoted: None,
         whole_str: string,
-        substring_beginning: Some(0),
+        substring_beginning: None,
     }
 }
 
@@ -96,9 +96,13 @@ mod tests {
             r#"" fews' dsfds""#, r#"--lol=" xczc"#,
         ];
 
+        let quotes_inside_each_other = r#"--asdf=""""jkn ""  "" ewvj 'hello goodbyte' cnvvie="tty3 9cx jszv="32"" 32f  unpaired_quote="asdf eiwo cxbk    ids  "#;
+        let quotes_inside_each_other_expected = [r#"--asdf=""""jkn"#, "\"\"", "\"\"", "ewvj", "'hello goodbyte'", r#"cnvvie="tty3 9cx jszv="32"""#, "32f", "unpaired_quote=\"asdf eiwo cxbk    ids  "];
+
         let test_cases: &[(&str, &[&str])] = &[
             (simple_case, &simple_case_expected),
             (testing_everything, &testing_everything_expected),
+            (quotes_inside_each_other, &quotes_inside_each_other_expected),
         ];
         for (input, expected) in test_cases {
             assert_eq!(split_at_unquoted_spaces(input).collect::<Vec<_>>().as_slice(), *expected);

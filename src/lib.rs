@@ -81,8 +81,23 @@ fn transform_command_line(command_line: &str, transform_parameters: UniqueTransf
     'args_loop: for parameter in utils::split_at_unquoted_spaces(command_line) {
         // Parameter only matches if it is in the form of "key=value"
         // and the key is equal to one of the transform parameters.
-        if let Some((key, value)) = parameter.split_once('=') {
+        if let Some((key, mut value)) = parameter.split_once('=') {
             if key == transform_parameters.additional_args {
+                // If the additional arguments are wrapped in single quotes or double quotes,
+                // remove the outer pair of quotes before pushing the arguments onto the new
+                // command line.
+                let mut is_wrapped = false;
+                for c in ['\'', '"'] {
+                    is_wrapped = is_wrapped ||
+                        (value.starts_with(c) && value.ends_with(c));
+                }
+                if is_wrapped {
+                    let mut chars = value.chars();
+                    chars.next();
+                    chars.next_back();
+                    value = chars.as_str();
+                }
+
                 new_cmdline.push_str(value);
                 new_cmdline.push(' ');
                 continue 'args_loop;
@@ -392,9 +407,8 @@ mod tests {
         let working_command_line = r#"2312 --kernel-lol=tty390=zxcvr lol=5 --asdf="tee=4 sasd=1 83      dfds 983=5=das"     see 3 cx=8ijds --see-initrd=--kernel-lol"#;
         let working_expected = Ok(KexecArgs {
             kernel: "tty390=zxcvr".to_string(),
-            initrd: "--kernl-lol".to_string(), // For the moment, this is purposely misspelled
-                                               // to ensure rust tests work correctly.
-            command_line: "2312 lol=5 tee=4 sasd=1 83      dfds 983=5=das see 3 cx=8ijds".to_string(),
+            initrd: "--kernel-lol".to_string(),
+            command_line: "2312 lol=5 tee=4 sasd=1 83      dfds 983=5=das see 3 cx=8ijds ".to_string(),
         });
 
         let missing_kernel_command_line = r#"2312 --kernel-lol lol=5 --asdf="tee=4 sasd=1 83      dfds 983=5=das"     see 3 cx=8ijds --see-initrd=--kernel-lol"#;
@@ -415,10 +429,26 @@ mod tests {
             ).try_into().unwrap()
         );
 
+        let no_additional_args_command_line = r#"lololololol --kernel-lol= --see-initrd="#;
+        let no_additional_args_expected = Ok(KexecArgs {
+            kernel: "".to_string(),
+            initrd: "".to_string(),
+            command_line: "lololololol ".to_string(),
+        });
+
+        let additional_args_quotes_command_line = r#"an_option="32 cxds" 'jcxn ewi' --kernel-lol= --see-initrd= --asdf="lol=3" ewji  --asdf=""fdji   e32 cx=3"" --asdf="'hello goodbye c32=gfda'" --asdf="x="hello    fdjs"  id=4"   ejkncxv"#;
+        let additional_args_quotes_expected = Ok(KexecArgs {
+            kernel: "".to_string(),
+            initrd: "".to_string(),
+            command_line: r#"an_option="32 cxds" 'jcxn ewi' lol=3 ewji "fdji   e32 cx=3" 'hello goodbye c32=gfda' x="hello    fdjs"  id=4 ejkncxv "#.to_string(),
+        });
+
         for (command_line, expected) in [
             (working_command_line, working_expected),
             (missing_kernel_command_line, missing_kernel_expected),
             (set_multiple_times_command_line, set_multiple_times_expected),
+            (no_additional_args_command_line, no_additional_args_expected),
+            (additional_args_quotes_command_line, additional_args_quotes_expected),
         ] {
             assert_eq!(transform_command_line(command_line, transform_parameters.clone()), expected);
         }

@@ -1,11 +1,13 @@
 #!/bin/ash
 
-# This script is configured by the ash script /boot/usb-boot/boot-config.ash.
+# This script is configured by the ash script /boot/usb-boot/boot-config.ash (in the root filesystem).
 # That config file is sourced into this script. It must define a few environment
 # variables listed below:
 # - CMDLINE: The kernel command line for the kernel to kexec into.
 # - KERNEL: The path to the kernel to kexec.
 # - INITRD: The path to the initrd to kexec.
+# All paths are relative to the directory the config file is in,
+# i.e. /boot/usb-boot.
 
 # This binary should not block.
 

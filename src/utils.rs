@@ -109,3 +109,20 @@ mod tests {
         }
     }
 }
+
+/// Tests whether there are any two elements in the slice that are equal
+/// to each other.
+/// Returns true if every element in the slice is unique, i.e. there are no two elements in
+/// the slice that are equal to each other.
+/// Returns false if there are at least two elements in the slice that are equal to each other.
+pub fn elements_are_unique<T: Eq>(elements: &[T]) -> bool {
+    for base in 0..(elements.len()-1) {
+        let compare_to = &elements[base];
+        for elem in &elements[base+1..] {
+            if *elem == *compare_to {
+                return false;
+            }
+        }
+    }
+    true
+}

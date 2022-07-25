@@ -10,7 +10,7 @@
 use std::env;
 
 use anyhow::{Result, bail};
-use usb_boot_kexec::TransformParameters;
+use usb_boot_kexec::initramfs_kexec_runner::TransformParameters;
 
 fn main() -> Result<()> {
     /*

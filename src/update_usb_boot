@@ -27,17 +27,11 @@
 config_file_option='--config'
 default_config_file='/etc/usb-boot/update_usb_config.bash'
 
-error_without_cleanup() {
-    log "$1" >&2
-    exit 1
-}
-error() {
-    log "$1" >&2
-    cleanup
-    exit 1
-}
 log() {
-    echo "    ==> $1"
+    echo "    ==> INFO: $1"
+}
+log_error() {
+    echo "    ==> ERROR: $1" >&2
 }
 log_stdin() {
     local line
@@ -45,17 +39,18 @@ log_stdin() {
         log "$line"
     done
 }
+error_without_cleanup() {
+    log_error "$1"
+    exit 1
+}
+error() {
+    log_error "$1"
+    cleanup
+    exit 1
+}
 
 no_value_provided_for_option() {
     error "no value provided for option \"$1\""
-}
-
-cleanup_level=0
-cleanup() {
-    [[ "$cleanup_level" -gt 0 ]] || return
-    log "Unmounting the block device"
-    umount "$MOUNT_POINT" || error_without_cleanup 'failed to unmount block device'
-    log "Finished. Exiting"
 }
 
 # Parse command line parameters
@@ -85,6 +80,14 @@ config_file="${config_file-"$default_config_file"}"
 
 # End parsing command line parameters
 
+cleanup_level=0
+cleanup() {
+    [[ "$cleanup_level" -gt 0 ]] || return
+    log "Unmounting the block device"
+    umount "$MOUNT_POINT" || error_without_cleanup 'failed to unmount block device'
+    log "Finished. Exiting"
+}
+
 log "Using config file \"$config_file\""
 source "$config_file" || error "failed to source config file \"$config_file\""
 log_stdin << EOF
@@ -106,7 +109,7 @@ mount "$BLOCK_DEVICE" "$MOUNT_POINT" || error 'failed to mount block device'
 combined_destination_path="$MOUNT_POINT/$DESTINATION"
 [[ -d "$combined_destination_path" ]] || error "the destination directory \"$combined_destination_path\" does not exist or is not a directory"
 
-log "Removing all old boot files on the usb"
+log "Removing all old boot files from the usb"
 rm -rf "$combined_destination_path"/* || error 'failed to remove all old boot files from the usb'
 
 log "Copying new boot files onto usb"

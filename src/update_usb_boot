@@ -1,0 +1,93 @@
+#!/bin/bash
+
+# This script updates the files on the usb used to boot into this computer.
+# It first mounts the usb onto the mount point specified in the config file.
+# It then deletes the old boot files in the destination directory on the usb,
+# and copies the contents of the source directory containing the updated
+# boot files to the destination directory.
+#
+# This script uses a config file to specify configuration for the
+# operation of this script.
+# The config file should be a bash script. The config file is sourced
+# into this script.
+# By default, the config file is located in the path pointed to by the
+# $default_config_file variable below, but the config file path can be changed
+# by setting the option specified by the $config_file_option variable below
+# in the form "option=value" or "option value", on the command line.
+# For example, "executable_name --config=/etc/lol"
+#
+# This script expects the config file to set these variables:
+# BLOCK_DEVICE: The path to the block device to mount.
+# MOUNT_POINT: The path to mount the block device to.
+# SOURCE: The path (on this filesystem) to the directory containing
+#   the updated files to copy from.
+# DESTINATION: The path (with root set to the root of the usb) to the directory
+#   on the usb to copy the updated files to.
+
+config_file_option='--config'
+default_config_file='/etc/usb-boot/update_usb_config.bash'
+
+error_without_cleanup() {
+    echo "$1" >&2
+    exit 1
+}
+error() {
+    echo "$1" >&2
+    cleanup
+    exit 1
+}
+
+no_value_provided_for_option() {
+    error "no value provided for option \"$1\""
+}
+
+cleanup_level=0
+cleanup() {
+    [[ "$cleanup_level" -gt 0 ]] || return
+    umount "$MOUNT_POINT" || error_without_cleanup 'failed to unmount block device'
+}
+
+# Parse command line parameters
+while [[ $# -gt 0 ]]; do
+    # First check if config file is set in the form "option=value"
+    without_prefix="${1#"$config_file_option="}"
+    if [[ "$without_prefix" != "$1" ]]; then
+        [[ -z "$without_prefix" ]] && no_value_provided_for_option "$config_file_option"
+        config_file="$without_prefix"
+        shift
+        continue
+    fi
+    # Next check if config file is set in the form "option value"
+    case "$1" in
+        "$config_file_option")
+            [[ -v 2 ]] || no_value_provided_for_option "$config_file_option"
+            config_file="$2"
+            shift 2
+            ;;
+        *)
+            error "unrecognized option $1"
+            ;;
+    esac
+done
+# If config file was not set, set it to the default.
+config_file="${config_file-"$default_config_file"}"
+
+# End parsing command line parameters
+
+source "$config_file" || error "failed to source config file \"$config_file\""
+
+[[ -b "$BLOCK_DEVICE" ]] || error 'path to block device does not exist or is not a block device file'
+[[ -d "$MOUNT_POINT" ]] || error 'mount point does not exist or is not a directory'
+[[ -d "$SOURCE" ]] || error 'source directory (to copy from) does not exist or is not a directory'
+
+mount "$BLOCK_DEVICE" "$MOUNT_POINT" || error 'failed to mount block device'
+((cleanup_level++))
+
+combined_destination_path="$MOUNT_POINT/$DESTINATION"
+[[ -d "$combined_destination_path" ]] || error "the destination directory \"$combined_destination_path\" does not exist or is not a directory"
+
+rm -rf "$combined_destination_path"/* || error 'failed to remove all old boot files from the usb'
+
+cp --dereference "$SOURCE"/* "$combined_destination_path" || error 'failed to copy from source to destination'
+
+cleanup

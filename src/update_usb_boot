@@ -28,13 +28,22 @@ config_file_option='--config'
 default_config_file='/etc/usb-boot/update_usb_config.bash'
 
 error_without_cleanup() {
-    echo "$1" >&2
+    log "$1" >&2
     exit 1
 }
 error() {
-    echo "$1" >&2
+    log "$1" >&2
     cleanup
     exit 1
+}
+log() {
+    echo "    ==> $1"
+}
+log_stdin() {
+    local line
+    while IFS= read -r line; do
+        log "$line"
+    done
 }
 
 no_value_provided_for_option() {
@@ -44,7 +53,9 @@ no_value_provided_for_option() {
 cleanup_level=0
 cleanup() {
     [[ "$cleanup_level" -gt 0 ]] || return
+    log "Unmounting the block device"
     umount "$MOUNT_POINT" || error_without_cleanup 'failed to unmount block device'
+    log "Finished. Exiting"
 }
 
 # Parse command line parameters
@@ -74,20 +85,31 @@ config_file="${config_file-"$default_config_file"}"
 
 # End parsing command line parameters
 
+log "Using config file \"$config_file\""
 source "$config_file" || error "failed to source config file \"$config_file\""
+log_stdin << EOF
+Configuration:
+BLOCK_DEVICE = "$BLOCK_DEVICE"
+MOUNT_POINT = "$MOUNT_POINT"
+SOURCE = "$SOURCE"
+DESTINATION = "$DESTINATION"
+EOF
 
 [[ -b "$BLOCK_DEVICE" ]] || error 'path to block device does not exist or is not a block device file'
 [[ -d "$MOUNT_POINT" ]] || error 'mount point does not exist or is not a directory'
 [[ -d "$SOURCE" ]] || error 'source directory (to copy from) does not exist or is not a directory'
 
+log "Mounting the block device"
 mount "$BLOCK_DEVICE" "$MOUNT_POINT" || error 'failed to mount block device'
 ((cleanup_level++))
 
 combined_destination_path="$MOUNT_POINT/$DESTINATION"
 [[ -d "$combined_destination_path" ]] || error "the destination directory \"$combined_destination_path\" does not exist or is not a directory"
 
+log "Removing all old boot files on the usb"
 rm -rf "$combined_destination_path"/* || error 'failed to remove all old boot files from the usb'
 
+log "Copying new boot files onto usb"
 cp --dereference "$SOURCE"/* "$combined_destination_path" || error 'failed to copy from source to destination'
 
 cleanup

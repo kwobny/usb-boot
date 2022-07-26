@@ -28,10 +28,10 @@ config_file_option='--config'
 default_config_file='/etc/usb-boot/update_usb_config.bash'
 
 log() {
-    echo "    ==> INFO: $1"
+    printf "    ==> INFO: $1\n"
 }
 log_error() {
-    echo "    ==> ERROR: $1" >&2
+    printf "    ==> ERROR: $1\n" >&2
 }
 log_stdin() {
     local line
@@ -39,14 +39,22 @@ log_stdin() {
         log "$line"
     done
 }
-error_without_cleanup() {
-    log_error "$1"
-    exit 1
-}
 error() {
     log_error "$1"
     cleanup
+    log_error 'Failed to update usb boot files. Exiting'
     exit 1
+}
+
+cleanup_level=0
+cleanup_done=false
+cleanup() {
+    [[ $cleanup_done == true ]] && return
+    cleanup_done=true
+
+    [[ "$cleanup_level" -gt 0 ]] || return
+    log "Unmounting the block device"
+    umount "$MOUNT_POINT" || error 'failed to unmount block device'
 }
 
 no_value_provided_for_option() {
@@ -80,14 +88,6 @@ config_file="${config_file-"$default_config_file"}"
 
 # End parsing command line parameters
 
-cleanup_level=0
-cleanup() {
-    [[ "$cleanup_level" -gt 0 ]] || return
-    log "Unmounting the block device"
-    umount "$MOUNT_POINT" || error_without_cleanup 'failed to unmount block device'
-    log "Finished. Exiting"
-}
-
 log "Using config file \"$config_file\""
 source "$config_file" || error "failed to source config file \"$config_file\""
 log_stdin << EOF
@@ -97,6 +97,8 @@ MOUNT_POINT = "$MOUNT_POINT"
 SOURCE = "$SOURCE"
 DESTINATION = "$DESTINATION"
 EOF
+
+printf '\n'
 
 [[ -b "$BLOCK_DEVICE" ]] || error 'path to block device does not exist or is not a block device file'
 [[ -d "$MOUNT_POINT" ]] || error 'mount point does not exist or is not a directory'
@@ -116,3 +118,4 @@ log "Copying new boot files onto usb"
 cp --dereference "$SOURCE"/* "$combined_destination_path" || error 'failed to copy from source to destination'
 
 cleanup
+log "Successfully updated usb boot files. Exiting"

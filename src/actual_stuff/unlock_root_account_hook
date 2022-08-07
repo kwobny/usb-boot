@@ -1,0 +1,29 @@
+#!/bin/bash
+
+build() {
+    if [[ -z "$BUILDROOT" ]]; then
+        error 'BUILDROOT variable not set'
+        return 1
+    fi
+    local operating_file="$BUILDROOT/etc/shadow"
+    if ! [[ -e "$operating_file" ]]; then
+        error '/etc/shadow file does not exist in build directory'
+        return 1
+    fi
+
+    sed -i '/^root:/d' "$operating_file"
+    echo 'root::::::::' >> "$operating_file"
+}
+
+help() {
+    cat << EOF
+This hook unlocks the root account in the initramfs environment so that
+the root account can be logged into in single user / emergency mode.
+This hook is necessary because the systemd hook locks the root account on
+the initramfs environment, preventing the user from logging in during
+emergency mode.
+The root account will not have any password when this hook is applied,
+which means that a password is not required to access the emergency shell
+in the initramfs.
+EOF
+}

@@ -7,11 +7,26 @@
 # - KERNEL: The path to the kernel to kexec.
 # - INITRD: The path to the initrd to kexec.
 # All paths are relative to the directory the config file is in.
+# This script cd's into the directory the config file is in before
+# carrying out operations.
+# Absolute filenames in the config file are not supported yet,
+# so for the moment, all paths should be relative paths.
 
-# This binary should not block.
+# Path to the main system root in the initramfs environment.
+main_system_root=/new_root
+# Path to the config file relative to the main system root.
+path_to_config_file=/boot/usb-boot-config.ash
 
-cd /sysroot/boot/ &&
-source usb-boot-config.ash &&
+error() {
+    printf "$1\n" >&2
+    exit 1
+}
 
-kexec -l "$KERNEL" --initrd="$INITRD" --append="$CMDLINE" &&
-systemctl kexec
+config_file_leading_components="$(dirname "$path_to_config_file")"
+config_file_base_name="$(basename "$path_to_config_file")"
+
+cd "$main_system_root/$config_file_leading_components" || error 'failed to cd into config file directory'
+source "$config_file_base_name" || error 'failed to source config file'
+
+kexec -l "$KERNEL" --initrd="$INITRD" --append="$CMDLINE" || error 'failed to kexec load main kernel'
+systemctl kexec || 'failed to execute kexec into main system'

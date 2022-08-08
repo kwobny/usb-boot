@@ -1,0 +1,26 @@
+#!/bin/bash
+
+build() {
+    add_file /etc/usb-boot/initrd-kexec-real-kernel.service /etc/systemd/system/initrd-kexec-real-kernel.service
+    add_file /etc/usb-boot/kexec_into_real_kernel /usr/local/lib/usb_initramfs/kexec_into_real_kernel
+
+    add_binary kexec
+    
+    add_systemd_drop_in initrd-switch-root.service usb_initramfs << EOF
+[Unit]
+Wants=initrd-kexec-real-kernel.service
+
+[Service]
+ExecStart=
+ExecStart=true
+EOF
+}
+
+help() {
+    cat << EOF
+This hook is used to generate an initramfs that kexecs
+into a kernel located on an encrypted root/boot filesystem,
+instead of switching root.
+Used for booting from my usb.
+EOF
+}

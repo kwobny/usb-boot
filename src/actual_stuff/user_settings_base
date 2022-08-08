@@ -1,0 +1,68 @@
+#!/bin/bash
+
+# This function takes username and password pairs
+# from stdin in the same format as the chpasswd(8) command
+# and updates the passwords of the specified users
+# in the initramfs environment.
+#
+# Parameters:
+# [-e|-p]
+# -e: supplied password is already encrypted/hashed.
+# -p: supplied password is not encrypted.
+# If none of these options are supplied, the default
+# behavior is to assume -p (passwords are not encrypted).
+set_user_passwords() {
+    local password_is_encrypted=false
+    case "$1" in
+        '-e')
+            password_is_encrypted=true
+            ;;
+        '-p')
+            password_is_encrypted=false
+            ;;
+        *)
+            error "unknown argument \"$1\""
+            return 1
+            ;;
+    esac
+
+    if [[ -z "$BUILDROOT" ]]; then
+        error 'BUILDROOT variable not set'
+        return 1
+    fi
+    local file
+    for file in /etc/{passwd,shadow,login.defs}; do
+        local combined_filename="$BUILDROOT/$file"
+        if ! [[ -e "$combined_filename" ]]; then
+            error "the file \"$combined_filename\" does not exist in build directory"
+            return 1
+        fi
+    done
+
+    command_str=(chpasswd --root "$BUILDROOT")
+    if [[ $password_is_encrypted == true ]]; then
+        command_str+=('-e')
+    fi
+
+    "${command_str[@]}"
+}
+
+build() {
+    add_file /etc/login.defs
+}
+
+help() {
+    cat << EOF
+This hook provides helper functions for use in other hooks,
+to manipulate details of user accounts in the initramfs environment.
+To use this hook, place this hook in the hooks section of the
+mkinitcpio config. Hooks following this hook in the hooks section
+will be able to use the functions defined in this hook.
+
+One use for this hook is to unlock the root account in the
+initramfs environment so that the root account can be logged into
+in single user / emergency mode. By default, the systemd hook locks
+the root account in the initramfs environment, preventing the user
+from accessing a console during emergency mode.
+EOF
+}

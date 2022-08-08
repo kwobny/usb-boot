@@ -18,12 +18,15 @@ error() {
 # Parameters:
 # source destination [mode]
 # Default value of mode is the mode of the source file.
-# Source must be a file to install, and destination must be the path/name
-# of the installed file.
+# Source must be a file to install.
+# Destination must be the path/name of the installed file,
+# or the directory to place the installed file in.
+# If destination is a directory, then the installed file will
+# have the same name as the source file.
 install_file() {
     local source="$1", destination="$2", mode="${3:-$(stat -c %a "$source")}"
 
-    install -DCm "$mode" -T "$source" "$destination" || log_error "failed to install \"$source\" to \"$destination\""
+    install -DCm "$mode" "$source" "$destination" || log_error "failed to install \"$source\" to \"$destination\""
 }
 
 cd "$(git rev-parse --show-toplevel)" || error 'failed to cd into root of git repository'

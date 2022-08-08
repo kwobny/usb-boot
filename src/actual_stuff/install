@@ -15,22 +15,58 @@ error() {
 # Check to make sure running as root
 [[ "$EUID" == 0 ]] || error 'Please run as root'
 
-# Parameters:
-# source destination [mode]
-# Default value of mode is the mode of the source file.
-# Source must be a file to install.
-# Destination must be the path/name of the installed file,
-# or the directory to place the installed file in.
-# If destination is a directory, then the installed file will
-# have the same name as the source file.
+# Syntax:
+# (-d|-f) source destination [mode]
+#
+# (-d|-f): Mandatory flags that define how destination
+#     (look below) is interpreted.
+#     -d: The destination is a directory, and the source
+#     file will be installed in that directory with the same
+#     filename as the source.
+#     -f: The destination is a full file path. The source
+#     will be installed to that exact path.
+# source: The file to install / copy from. Only a single file may
+#     be specified for this parameter.
+# destination: The place to install the file to.
+#     Look above on how this is interpreted.
+# mode: The permission mode of the destination file.
+#     If this isn't provided, the it is derived from the
+#     mode of the source file.
 install_file() {
-    local source="$1", destination="$2", mode="${3:-$(stat -c %a "$source")}"
+    if [[ $# -lt 3 ]] || [[ $# -gt 4 ]]; then
+        log_error "expected 3-4 arguments, but got $#."
+        return 1
+    fi
 
-    install -DCm "$mode" "$source" "$destination" || log_error "failed to install \"$source\" to \"$destination\""
+    local source="$2" destination="$3" mode=
+
+    local part_of_command
+    case "$1" in
+        '-d')
+            part_of_command=('-t' "$destination" "$source")
+            ;;
+        '-f')
+            part_of_command=('-T' "$source" "$destination")
+            ;;
+        *)
+            log_error "expected -d or -f, got $1"
+            return 1
+            ;;
+    esac
+
+    mode="${4:-$(stat -c %a "$source")}"
+
+    install -DCm "$mode" "${part_of_command[@]}" || {
+        log_error "failed to install \"$source\" to \"$destination\" (destination interpreted as $1)"
+        return 1
+    }
 }
 
 cd "$(git rev-parse --show-toplevel)" || error 'failed to cd into root of git repository'
 cd src/actual_stuff/ || error
 
-install_file update_usb_boot /usr/local/bin/update_usb_boot
-install_file kexec_into_real_kernel /etc/usb-boot/kexec_into_real_kernel
+# Test
+install_file -f vcxvniee ewqnxlzk
+
+install_file -d update_usb_boot /usr/local/bin/
+install_file -d kexec_into_real_kernel /etc/usb-boot/

@@ -2,7 +2,7 @@
 # from the usb and kexec into the system kernel on the encrypted system.
 
 # Presets
-PRESETS=('default' 'fallback')
+PRESETS=('default' 'fallback' 'no_kexec')
 
 ALL_kver='/boot/usb-boot/kernel'
 ALL_config='/etc/mkinitcpio.conf'
@@ -15,3 +15,6 @@ default_options="-A usb-boot,disable_root_password -S mirror_root_password"
 fallback_image="/boot/usb-boot/initramfs-fallback.img"
 # fallback_efi_image="/boot/usb-boot/stub-fallback.efi"
 fallback_options="$default_options -S autodetect"
+
+no_kexec_image='/boot/usb-boot/initramfs-no-kexec.img'
+no_kexec_options='-A disable_root_password -S mirror_root_password'

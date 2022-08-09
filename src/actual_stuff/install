@@ -34,7 +34,7 @@ error() {
 #     mode of the source file.
 install_file() {
     if [[ $# -lt 3 ]] || [[ $# -gt 4 ]]; then
-        log_error "expected 3-4 arguments, but got $#."
+        log_error "expected 3-4 arguments, but got $# arguments."
         return 1
     fi
 
@@ -75,19 +75,20 @@ install_file() {
 # get confused as a mode by the function.
 install_to_directory() {
     local non_source
-    if [[ ${!#} =~ '^[0-7]{3,4}$' ]]; then
+    if [[ "${!#}" =~ '^[0-7]{3,4}$' ]]; then
         non_source=2
     else
         non_source=1
     fi
     if [[ $# -lt $non_source ]]; then
-        log_error 'not enough arguments'
+        log_error "expected at least $non_source arguments, but got $# arguments."
         return 1
     fi
     local num_sources=$(($# - $non_source))
     local sources=("${@:1:$num_sources}")
     shift $num_sources
 
+    local source
     for source in "${sources[@]}"; do
         install_file -d "$source" "$@"
     done

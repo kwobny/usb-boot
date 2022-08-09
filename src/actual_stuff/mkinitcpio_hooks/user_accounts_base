@@ -12,19 +12,28 @@
 # If none of these options are supplied, the default
 # behavior is to assume -p (passwords are not encrypted).
 set_user_passwords() {
-    local password_is_encrypted=false
-    case "$1" in
-        '-e')
-            password_is_encrypted=true
-            ;;
-        '-p')
-            password_is_encrypted=false
-            ;;
-        *)
-            error "unknown argument \"$1\""
-            return 1
-            ;;
-    esac
+    if [[ $# -gt 1 ]]; then
+        error "expected 0-1 arguments, but got $# arguments"
+        return 1
+    fi
+
+    local password_is_encrypted
+    if [[ -v 1 ]]; then
+        case "$1" in
+            '-e')
+                password_is_encrypted=true
+                ;;
+            '-p')
+                password_is_encrypted=false
+                ;;
+            *)
+                error "unknown argument \"$1\""
+                return 1
+                ;;
+        esac
+    else
+        password_is_encrypted=false
+    fi
 
     if [[ -z "$BUILDROOT" ]]; then
         error 'BUILDROOT variable not set'

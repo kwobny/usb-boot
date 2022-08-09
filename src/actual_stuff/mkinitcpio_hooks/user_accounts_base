@@ -53,8 +53,8 @@ build() {
 
 help() {
     cat << EOF
-This hook provides helper functions for use in other hooks,
-to manipulate details of user accounts in the initramfs environment.
+This hook provides helper functions for use in other install hooks,
+to manipulate and setup user accounts in the initramfs environment.
 To use this hook, place this hook in the hooks section of the
 mkinitcpio config. Hooks following this hook in the hooks section
 will be able to use the functions defined in this hook.

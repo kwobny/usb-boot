@@ -61,6 +61,7 @@ install_file() {
         return 1
     }
 }
+
 # Syntax:
 # source... dest_directory [mode]
 #
@@ -101,3 +102,4 @@ install_file -f vcxvniee ewqnxlzk
 install_file -d update_usb_boot /usr/local/bin/
 install_file -d kexec_into_real_kernel /etc/usb-boot/
 install_to_directory mkinitcpio_hooks/* /etc/initcpio/install/
+install_file -d usb-boot.preset /etc/mkinitcpio.d/

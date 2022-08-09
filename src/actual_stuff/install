@@ -54,6 +54,11 @@ install_file() {
             ;;
     esac
 
+    if ! [[ -r "$source" ]]; then
+        log_error "the file \"$source\" does not exist or is not readable"
+        return 1
+    fi
+
     mode="${4:-$(stat -c %a "$source")}"
 
     install -DCm "$mode" "${part_of_command[@]}" || {
@@ -88,17 +93,17 @@ install_to_directory() {
     local sources=("${@:1:$num_sources}")
     shift $num_sources
 
+    local return_status=0
     local source
     for source in "${sources[@]}"; do
-        install_file -d "$source" "$@"
+        install_file -d "$source" "$@" || return_status=1
     done
+
+    return $return_status
 }
 
 cd "$(git rev-parse --show-toplevel)" || error 'failed to cd into root of git repository'
 cd src/actual_stuff/ || error
-
-# Test
-install_file -f vcxvniee ewqnxlzk
 
 install_file -d update_usb_boot /usr/local/bin/
 install_file -d kexec_into_real_kernel /etc/usb-boot/

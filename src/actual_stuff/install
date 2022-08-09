@@ -61,6 +61,36 @@ install_file() {
         return 1
     }
 }
+# Syntax:
+# source... dest_directory [mode]
+#
+# This function installs an arbitrary number of sources
+# to the destination directory provided. The number of sources
+# can be zero.
+# If mode is provided, all installed files will be set to have
+# that mode.
+# If dest_directory has a name that can possibly be a mode,
+# put something like a "./" in front of it so that it does not
+# get confused as a mode by the function.
+install_to_directory() {
+    local non_source
+    if [[ ${!#} =~ '^[0-7]{3,4}$' ]]; then
+        non_source=2
+    else
+        non_source=1
+    fi
+    if [[ $# -lt $non_source ]]; then
+        log_error 'not enough arguments'
+        return 1
+    fi
+    local num_sources=$(($# - $non_source))
+    local sources=("${@:1:$num_sources}")
+    shift $num_sources
+
+    for source in "${sources[@]}"; do
+        install_file -d "$source" "$@"
+    done
+}
 
 cd "$(git rev-parse --show-toplevel)" || error 'failed to cd into root of git repository'
 cd src/actual_stuff/ || error
@@ -70,3 +100,4 @@ install_file -f vcxvniee ewqnxlzk
 
 install_file -d update_usb_boot /usr/local/bin/
 install_file -d kexec_into_real_kernel /etc/usb-boot/
+install_to_directory mkinitcpio_hooks/* /etc/initcpio/install/

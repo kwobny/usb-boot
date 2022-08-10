@@ -61,7 +61,10 @@ set_user_passwords() {
         command_str+=('-e')
     fi
 
-    "${command_str[@]}"
+    "${command_str[@]}" || {
+        error 'failed to set one or more user passwords'
+        return 1
+    }
 }
 
 build() {

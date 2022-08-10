@@ -10,7 +10,7 @@ ALL_microcode=(/boot/*-ucode.img)
 
 default_image="/boot/usb-boot/initramfs.img"
 # default_efi_image="/boot/usb-boot/stub.efi"
-default_options="-A usb-boot,disable_root_password -S mirror_root_password"
+default_options="-A disable_root_password,usb-boot -S mirror_root_password"
 
 fallback_image="/boot/usb-boot/initramfs-fallback.img"
 # fallback_efi_image="/boot/usb-boot/stub-fallback.efi"

@@ -1,5 +1,16 @@
 #!/bin/bash
 
+# Returns 0 if the build root variable exists (is not null or unset).
+# Returns 1 if it does not exist.
+assert_build_root_exists() {
+    if [[ -n "$BUILDROOT" ]]; then
+        return 0
+    else
+        error 'BUILDROOT variable is not set'
+        return 1
+    fi
+}
+
 # This function takes username and password pairs
 # from stdin in the same format as the chpasswd(8) command
 # and updates the passwords of the specified users
@@ -35,15 +46,12 @@ set_user_passwords() {
         password_is_encrypted=false
     fi
 
-    if [[ -z "$BUILDROOT" ]]; then
-        error 'BUILDROOT variable not set'
-        return 1
-    fi
+    assert_build_root_exists || return 1
+
     local file
-    for file in /etc/{passwd,shadow,login.defs}; do
-        local combined_filename="$BUILDROOT/$file"
-        if ! [[ -e "$combined_filename" ]]; then
-            error "the file \"$combined_filename\" does not exist in build directory"
+    for file in "$BUILDROOT"/etc/{passwd,shadow,login.defs}; do
+        if ! [[ -e "$file" ]]; then
+            error "the file \"$file\" does not exist in the build directory"
             return 1
         fi
     done
@@ -57,7 +65,20 @@ set_user_passwords() {
 }
 
 build() {
+    assert_build_root_exists || return 1
+
     add_file /etc/login.defs
+
+    # Create /etc/passwd and /etc/shadow in build directory
+    # if not already there, and set their file permissions
+    # to the permissions of the corresponding files on the
+    # root filesystem.
+    local native_file
+    for native_file in /etc/{passwd,shadow}; do
+        local build_dir_file="$BUILDROOT/$native_file"
+        touch "$build_dir_file"
+        chmod --preserve-root --reference="$native_file" "$build_dir_file"
+    done
 }
 
 help() {

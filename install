@@ -103,7 +103,6 @@ install_to_directory() {
 }
 
 cd "$(git rev-parse --show-toplevel)" || error 'failed to cd into root of git repository'
-cd src/actual_stuff/ || error
 
 install_file -d update_usb_boot /usr/local/bin/
 install_file -d kexec_into_real_kernel /etc/usb-boot/

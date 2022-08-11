@@ -1,8 +1,13 @@
 #!/bin/bash
 
-# This script installs/updates the files in this directory to this machine.
-# It must be called anywhere within the same git repository
-# the source files are located in.
+# This script installs/updates the files in the directory this
+# script is located, to this machine.
+# It uses a file mapping file to configure what files it installs.
+# The file mapping is sourced into this script. The file mapping
+# must be a bash script that uses the functions defined in this install
+# script to define what and how to install the files in this project.
+
+FILE_MAPPING=./file_install_mapping.bash
 
 log_error() {
     printf "$1\n" >&2
@@ -102,9 +107,6 @@ install_to_directory() {
     return $return_status
 }
 
-cd "$(git rev-parse --show-toplevel)" || error 'failed to cd into root of git repository'
+cd "$(dirname "$(realpath -e "$0")")" || error 'failed to cd into where install script is located.'
 
-install_file -d update_usb_boot /usr/local/bin/
-install_file -d kexec_into_real_kernel /etc/usb-boot/
-install_to_directory mkinitcpio_hooks/* /etc/initcpio/install/
-install_file -d usb-boot.preset /etc/mkinitcpio.d/
+source "$FILE_MAPPING"

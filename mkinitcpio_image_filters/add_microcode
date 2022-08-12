@@ -10,6 +10,16 @@
 # microcode_file...
 # microcode_file: A microcode image.
 
+log() {
+    printf "$1\n"
+}
+log_stdin() {
+    local line
+    while IFS= read -r line; do
+        log "$line"
+    done
+}
+
 error() {
     printf "$1\n" >&2
     exit 1
@@ -21,4 +31,11 @@ fi
 
 microcode_files=("$@")
 
+# In this log message, microcode files higher up on the list are
+# placed first in the list of images that comprise the combined
+# initramfs image.
+log_stdin << EOF
+Embedding the following microcode images:
+$(for filename in "${microcode_files[@]}"; do printf "$filename\n"; done)
+EOF
 cat "${microcode_files[@]}" -

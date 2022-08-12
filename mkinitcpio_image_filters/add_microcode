@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# This script adds/embeds microcode into an initramfs image.
+# This script accepts an initramfs image through stdin,
+# adds one or more microcode images to it (specified through
+# command line arguments), then outputs the combined image
+# on stdout.
+#
+# Syntax (excluding program name):
+# microcode_file...
+# microcode_file: A microcode image.
+
+error() {
+    printf "$1\n" >&2
+    exit 1
+}
+
+if [[ ${#@} -eq 0 ]]; then
+    error 'Expected 1 or more arguments, but zero were supplied.'
+fi
+
+microcode_files=("$@")
+
+cat "${microcode_files[@]}" -

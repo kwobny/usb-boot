@@ -1,0 +1,108 @@
+#!/bin/bash
+
+set -u
+
+# CONSTANTS
+
+# Name of this program/command.
+COMMAND_NAME=usbbootcfg
+DEFAULT_CONFIG_FILE=/etc/
+DEFAULT_PAGER=less
+
+REQUIRED_CONFIG_VARIABLES=(KERNEL_LOCATION)
+
+log_error() {
+    printf "$1\n" >&2
+}
+die() {
+    log_error "$1"
+    exit 1
+}
+
+change_kernel() {
+    :
+}
+
+give_help() {
+    local pager
+    if command -v "$DEFAULT_PAGER" &> /dev/null; then
+        pager="$DEFAULT_PAGER"
+    else
+        pager=cat
+    fi
+
+    "$pager" << EOF
+NAME
+        $COMMAND_NAME - adjust the usb boot setup
+
+SYNOPSIS
+        $COMMAND_NAME [OPTIONS...] COMMAND [ARGS...]
+
+DESCRIPTION
+        $COMMAND_NAME performs various operations that change the usb boot
+        setup. All the possible operations are listed in the COMMANDS
+        section of this manual.
+
+CONFIGURATION
+        $COMMAND_NAME uses a configuration file to control the command's behavior.
+        The config file must be a bash script that sets the config variables
+        below. The config file will be sourced into this script. All config
+        variables are required.
+        The default location for the config file is $DEFAULT_CONFIG_FILE,
+        but this can be changed by specifying the --config option.
+        Config variables:
+            KERNEL_LOCATION
+                The location of the kernel that will be booted from the usb.
+
+COMMANDS
+        change-kernel FILE
+            Change the kernel used to boot initially from the usb.
+            This command will copy the kernel file specified by FILE
+            to the location specified by the config variable KERNEL_LOCATION.
+            After changing the kernel, this command will run mkinitcpio
+            to regenerate the initramfs images used to boot from the usb,
+            to keep them in sync with the kernel.
+            This command will also attempt to use several tricks to make
+            things more efficient, such as:
+                - Using hardlinks instead of copying, when possible.
+        help
+            Display this manual.
+
+OPTIONS
+        The following options may be supplied on the command line.
+        Some options require arguments. These options can be specified
+        in the form "OPTION VALUE".
+        Arguments that are required for long options are also required
+        for short options.
+        (Short options are options with one dash in front, long options
+        are options with two dashes in front.)
+
+        -c, --config CONFIG
+            Specify the configuration file this command should use.
+
+        -h, --help
+            Same as the help command above.
+            This option makes the command do nothing else, even if other
+            commands/options are given on the command line.
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        '-h'|'--help')
+            give_help
+            exit
+            ;;
+    esac
+done
+
+command_choice=
+
+case "$command_choice" in
+    'change-kernel')
+        change_kernel
+        ;;
+    *)
+        die "Invalid command \"$command_choice\"."
+        ;;
+esac

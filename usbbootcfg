@@ -9,14 +9,29 @@ COMMAND_NAME=usbbootcfg
 DEFAULT_CONFIG_FILE=/etc/
 DEFAULT_PAGER=less
 
-REQUIRED_CONFIG_VARIABLES=(KERNEL_LOCATION)
-
 log_error() {
     printf "$1\n" >&2
 }
 die() {
     log_error "$1"
     exit 1
+}
+
+# Check if a variable exists.
+# Cannot be used with positional parameters.
+# The variable name must be supplied as the first argument.
+# A variable that is null is considered to exist.
+# Returns 0 if the variable exists.
+# Returns 1 if not.
+var_exists() {
+    [[ -v "$1" ]]
+}
+# Check if a variable exists and is not null.
+# Cannot be used with positional parameters.
+# Returns 0 if the variable is null or does not exist.
+# Returns 1 if the variable is not null and exists.
+var_is_not_null() {
+    [[ -n "${!1:+x}" ]]
 }
 
 change_kernel() {
@@ -33,43 +48,81 @@ give_help() {
 
     "$pager" << EOF
 NAME
-        $COMMAND_NAME - adjust the usb boot setup
+        $COMMAND_NAME - usb boot setup management tool
 
 SYNOPSIS
         $COMMAND_NAME [OPTIONS...] COMMAND [ARGS...]
 
 DESCRIPTION
-        $COMMAND_NAME performs various operations that change the usb boot
+        $COMMAND_NAME is a tool for managing the usb boot setup. It performs
+        various operations that query or change properties of the usb boot
         setup. All the possible operations are listed in the COMMANDS
         section of this manual.
 
 CONFIGURATION
         $COMMAND_NAME uses a configuration file to control the command's behavior.
         The config file must be a bash script that sets the config variables
-        below. The config file will be sourced into this script. All config
-        variables are required.
+        below. The config file will be sourced into this script. Some variables
+        are required for certain commands to work. If a command requires certain
+        config variables and they are not present, the command will emit an
+        error. The config variables that each command requires are listed
+        in the section of this manual for that command.
         The default location for the config file is $DEFAULT_CONFIG_FILE,
         but this can be changed by specifying the --config option.
+        If the config file does not exist, it is the same as having an
+        empty config file.
         Config variables:
-            KERNEL_LOCATION
-                The location of the kernel that will be booted from the usb.
+            DEFAULT_OPTIONS
+                An array containing a set of arguments that represent the
+                default options of this command. These default options will
+                be parsed along with the command line options. These default
+                options have lower precedence than the actual command line
+                options, and will be overridden by them.
+
+            BOOT_KERNEL
+                The location of the kernel that will actually be booted
+                from the usb. All the usb boot initramfs images should be
+                in sync with this kernel. This is the kernel that will be
+                copied over to the usb.
+
+            UPSTREAM_KERNEL
+                The location of the kernel that this command should try to
+                keep the boot kernel up to date with. This wording implies
+                that the upstream kernel must always be the latest kernel,
+                but this does not have to be the case. The upstream kernel
+                can be any kernel, including an older or custom kernel. It
+                is just considered the target the command should aim to make
+                the boot kernel be. This variable is used by the update-kernel
+                command to update the boot kernel.
+
+            MKINITCPIO_PRESET
+                The mkinitcpio preset to use to generate the initramfs images
+                used for usb boot.
 
 COMMANDS
         change-kernel FILE
             Change the kernel used to boot initially from the usb.
             This command will copy the kernel file specified by FILE
-            to the location specified by the config variable KERNEL_LOCATION.
+            to the location specified by the config variable BOOT_KERNEL.
             After changing the kernel, this command will run mkinitcpio
             to regenerate the initramfs images used to boot from the usb,
             to keep them in sync with the kernel.
-            This command will also attempt to use several tricks to make
-            things more efficient, such as:
-                - Using hardlinks instead of copying, when possible.
+            Required config variables:
+                BOOT_KERNEL, MKINITCPIO_PRESET
+
+        update-kernel
+            Same as change-kernel UPSTREAM_KERNEL. This command will update
+            the boot kernel to the upstream kernel.
+            Required config variables:
+                UPSTREAM_KERNEL, BOOT_KERNEL, MKINITCPIO_PRESET
+
         help
             Display this manual.
 
 OPTIONS
         The following options may be supplied on the command line.
+        Options may be given anywhere, including before and after the
+        command.
         Some options require arguments. These options can be specified
         in the form "OPTION VALUE".
         Arguments that are required for long options are also required
@@ -84,6 +137,14 @@ OPTIONS
             Same as the help command above.
             This option makes the command do nothing else, even if other
             commands/options are given on the command line.
+
+OPTIONS SPECIFIC TO CHANGE-KERNEL AND UPDATE-KERNEL
+        --[no-]hard-link
+            Instead of copying the kernel file, just make a new hardlink
+            to it. --no-hard-link disables this feature and makes the command
+            use copying. Variants of this option declared later override earlier
+            declarations of this option.
+            The default behavior is --no-hard-link, i.e. to do a plain copy.
 EOF
 }
 

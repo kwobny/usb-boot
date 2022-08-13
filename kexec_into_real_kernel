@@ -5,29 +5,50 @@
 # variables listed below:
 # - CMDLINE: The kernel command line for the kernel to kexec into.
 # - KERNEL: The path to the kernel to kexec.
-# - INITRD: The path to the initrd to kexec.
+# - INITRD: A string containing paths to initrd images to kexec, delimited
+#       by spaces.
+#       All initrd images are concatenated together into a combined image,
+#       which is then kexec'ed. Images specified earlier in the list are
+#       placed earlier in the combined image.
+#       Having multiple images is useful for things like loading microcode.
 # All paths are relative to the directory the config file is in.
 # This script cd's into the directory the config file is in before
 # carrying out operations.
 # Absolute filenames in the config file are not supported yet,
 # so for the moment, all paths should be relative paths.
 
+# Print an error message and exit if the script attempts to expand an unset variable.
+set -u
+
 # Path to the main system root in the initramfs environment.
-main_system_root=/sysroot
+MAIN_SYSTEM_ROOT=/sysroot
 # Path to the config file relative to the main system root.
-path_to_config_file=/boot/usb-boot-config.ash
+PATH_TO_CONFIG_FILE=/boot/usb-boot-config.ash
+# Template for temporary filename that will contain combined initrd image.
+COMBINED_INITRD_FILENAME_TEMPLATE=/combined_initrd_image.XXXXXX
 
 error() {
     printf "$1\n" >&2
     exit 1
 }
 
-config_file_leading_components="$(dirname "$path_to_config_file")"
-config_file_base_name="$(basename "$path_to_config_file")"
+config_file_leading_components="$(dirname "$PATH_TO_CONFIG_FILE")"
+config_file_base_name="$(basename "$PATH_TO_CONFIG_FILE")"
 
-cd "$main_system_root/$config_file_leading_components" || error 'failed to cd into config file directory'
+cd "$MAIN_SYSTEM_ROOT/$config_file_leading_components" || error 'failed to cd into config file directory'
 source "./$config_file_base_name" || error 'failed to source config file'
 
-kexec -l "$KERNEL" --initrd="$INITRD" --append="$CMDLINE" || error 'failed to kexec load main kernel'
+# Create a temporary file for the combined initrd image.
+combined_initrd_file="$(mktemp "$COMBINED_INITRD_FILENAME_TEMPLATE")" ||
+    error 'failed to make temporary file for the combined initrd image'
+
+# Write each initrd image to the temporary file.
+# INITRD is intentionally unquoted.
+cat $INITRD > "$combined_initrd_file" ||
+    error 'failed to create the combined initrd image'
+
+kexec -l "$KERNEL" --initrd="$combined_initrd_file" --append="$CMDLINE" || error 'failed to kexec load main kernel'
+# The script is currently in a directory on the main system root filesystem.
+# cd outside the main system root so that the main system root can be unmounted by systemd during kexec.
 cd /
 systemctl kexec || error 'failed to execute kexec into main system'

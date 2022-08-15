@@ -34,10 +34,6 @@ var_is_not_null() {
     [[ -n "${!1:+x}" ]]
 }
 
-change_kernel() {
-    :
-}
-
 give_help() {
     local pager
     if command -v "$DEFAULT_PAGER" &> /dev/null; then
@@ -51,7 +47,7 @@ NAME
         $COMMAND_NAME - usb boot setup management tool
 
 SYNOPSIS
-        $COMMAND_NAME [OPTIONS...] COMMAND [ARGS...]
+        $COMMAND_NAME COMMAND [OPTIONS...] [ARGS...]
 
 DESCRIPTION
         $COMMAND_NAME is a tool for managing the usb boot setup. It performs
@@ -121,8 +117,15 @@ COMMANDS
 
 OPTIONS
         The following options may be supplied on the command line.
-        Options may be given anywhere, including before and after the
-        command.
+        Any argument that has one or two dashes in the beginning is considered
+        an option. To make a value with one or two dashes in the beginning
+        be interpreted as a positional argument, place a backslash in the
+        beginning of the argument. Any argument with a series of backslashes
+        at the beginning, followed by one or two dashes will be considered
+        a positional argument and will have one backslash stripped from the
+        beginning.
+        Options may be given anywhere on the command line, including before
+        and after the command.
         Some options require arguments. These options can be specified
         in the form "OPTION VALUE".
         Arguments that are required for long options are also required
@@ -141,12 +144,20 @@ OPTIONS
 OPTIONS SPECIFIC TO CHANGE-KERNEL AND UPDATE-KERNEL
         --[no-]hard-link
             Instead of copying the kernel file, just make a new hardlink
-            to it. --no-hard-link disables this feature and makes the command
-            use copying. Variants of this option declared later override earlier
-            declarations of this option.
-            The default behavior is --no-hard-link, i.e. to do a plain copy.
+            to the source file, when possible. --no-hard-link disables this
+            feature and makes the command use copying. Variants of this
+            option declared later override earlier declarations of this
+            option. The default behavior is --no-hard-link, i.e. to do a
+            plain copy.
 EOF
 }
+
+change_kernel() {
+    :
+}
+
+unprocessed_options=()
+positional_arguments=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -154,16 +165,57 @@ while [[ $# -gt 0 ]]; do
             give_help
             exit
             ;;
+        *)
+            if [[ "$1" =~ '^(-|--)' ]]; then
+                unprocessed_options+=("$1")
+            elif [[ "$1" =~ '^\\+(-|--)' ]]; then
+                positional_arguments+=("${1:1}")
+            else
+                positional_arguments+=("$1")
+            fi
+            ;;
     esac
+    shift
 done
 
-command_choice=
+command_choice="${positional_arguments[0]}"
+
+if ! var_exists positional_arguments[0]; then
+    die 'Command not given.'
+fi
+
+commands=(change-kernel update-kernel help)
+is_valid_command=false
+for possible_command in "${commands[@]}"; do
+    if [[ "$command_choice" == "$possible_command" ]]; then
+        is_valid_command=true
+        break
+    fi
+done
+if [[ $is_valid_command == false ]]; then
+    die "Unrecognized command \"$command_choice\"."
+fi
+
+index=-1
+option=
+shift_unprocessed_options() {
+    ((index++))
+    option="${unprocessed_options[$index]}"
+}
+shift_unprocessed_options
+
+while [[ $index -lt ${#unprocessed_options[@]} ]]; do
+    case "$option" in
+    esac
+done
 
 case "$command_choice" in
     'change-kernel')
         change_kernel
         ;;
     *)
-        die "Invalid command \"$command_choice\"."
+        die "Programming error. The value \"$command_choice\" is present \
+        in the commands array in the script, but it is not in the case \
+        statement at the bottom."
         ;;
 esac

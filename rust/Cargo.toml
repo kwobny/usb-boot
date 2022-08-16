@@ -7,8 +7,9 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.58"
+lazy_static = "1.4.0"
+regex = "1.6.0"
 thiserror = "1.0.31"
-common = { path = "../common" }
 
 [profile.release]
 lto = "thin"

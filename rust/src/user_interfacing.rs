@@ -1,9 +1,6 @@
 mod cmdline_parsing;
 mod config_parsing;
 
-use std::fs;
-
-use toml::Value;
 use clap::{Parser, ErrorKind};
 
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
@@ -52,11 +49,14 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
         Some(ref x) => &x,
         None => config_file_info.default_file,
     };
-    let config = fs::read_to_string(config_file)
-        .map_err(|_| UserInteractError::IOError)?
-        .parse::<Value>()
-        .map_err(|_| UserInteractError::UserInputError)?;
-    let config_contents = config_parsing::parse_config(config_file_info, config)?;
+    let config_contents = config_parsing::parse_config(config_file_info, config_file)?;
+
+    macro_rules! get_config_key {
+        ($key:ident) => {
+            config_contents.$key
+                .ok_or(UserInteractError::UserInputError)?
+        };
+    }
 
     match cli_args.command {
         Commands::ChangeKernel {
@@ -78,17 +78,13 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
                     ..
                 } => file,
                 Commands::UpdateKernel { .. } => {
-                    config_contents.upstream_kernel
-                        .ok_or(UserInteractError::UserInputError)?
+                    get_config_key!(upstream_kernel)
                 },
             };
 
-            let boot_kernel = config_contents.boot_kernel
-                .ok_or(UserInteractError::UserInputError)?;
-            let mkinitcpio_preset = config_contents.mkinitcpio_preset
-                .ok_or(UserInteractError::UserInputError)?;
-            let hard_link_default = config_contents.hard_link_default
-                .ok_or(UserInteractError::UserInputError)?;
+            let boot_kernel = get_config_key!(boot_kernel);
+            let mkinitcpio_preset = get_config_key!(mkinitcpio_preset);
+            let hard_link_default = get_config_key!(hard_link_default);
 
             let do_hard_link = match (hard_link_flag, no_hard_link_flag) {
                 (false, false) => hard_link_default,

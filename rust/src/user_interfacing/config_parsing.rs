@@ -3,6 +3,8 @@
 //! with the config file is the sole responsibility of this
 //! module.
 
+use std::fs;
+
 use toml::{Value, value::Table};
 
 use super::UserInteractError;
@@ -28,6 +30,15 @@ fn parse_config_recursive (
     return Ok(());
 }
 
+/// This function reads the file provided, and returns
+/// the root table of the config.
+fn get_config_from_file(config_file: &str) -> Result<Value, UserInteractError> {
+    fs::read_to_string(config_file)
+        .map_err(|_| UserInteractError::IOError)?
+        .parse::<Value>()
+        .map_err(|_| UserInteractError::UserInputError)
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct ConfigFileInfo<'a> {
     pub default_file: &'a str,
@@ -51,7 +62,7 @@ pub struct ConfigContents {
 /// This function parses the config file for this program,
 /// and returns a struct representing its contents.
 /// This function reads nothing but the config file.
-pub fn parse_config(config_info: ConfigFileInfo, config_root: Value) ->
+pub fn parse_config(config_info: ConfigFileInfo, config_file: &str) ->
 Result<ConfigContents, UserInteractError> {
     macro_rules! unwrap_variant {
         ($value:expr, $variant:path) => {
@@ -79,6 +90,7 @@ Result<ConfigContents, UserInteractError> {
         hard_link_default: None,
     };
 
+    let config_root = get_config_from_file(config_file)?;
     let root_table = match config_root {
         Value::Table(x) => x,
         _ => return Err(UserInteractError::UserInputError),

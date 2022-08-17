@@ -4,7 +4,7 @@ mod config_parsing;
 use clap::{Parser, ErrorKind};
 
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
-use config_parsing::ConfigFileInfo;
+use config_parsing::{ConfigFileInfo, ConfigContentsKey};
 
 pub enum OperationRequest {
     ChangeKernel {
@@ -15,11 +15,34 @@ pub enum OperationRequest {
     }
 }
 
+/// All key fields are relative to the root of the config file.
+/// Keys in tables use dots as separators between key components.
+pub enum InvalidInputKind {
+    InvalidCommandLineArguments {
+        details: clap::error::Error,
+    },
+    RequiredKeyMissingInConfig {
+        key: String,
+    },
+    UnknownKeyInConfig {
+        key: String,
+    },
+    InvalidConfigSyntax {
+        cause: toml::de::Error,
+    },
+    UnexpectedValueType {
+        key: String,
+        expected_type: &'static str,
+        actual_type: &'static str,
+    },
+}
 pub enum UserInteractError {
     /// An error caused by invalid input from the user.
-    InvalidUserInput,
+    InvalidUserInput(InvalidInputKind),
     /// An error in communication with the user.
-    IOError,
+    IOError {
+        cause: anyhow::Error,
+    },
 }
 
 /// This function interacts with the user.
@@ -40,8 +63,13 @@ pub enum UserInteractError {
 pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationRequest, UserInteractError> {
     let cli_args = Cli::try_parse().map_err(|err| {
         match err.kind() {
-            ErrorKind::Io | ErrorKind::Format => UserInteractError::IOError,
-            _ => UserInteractError::InvalidUserInput,
+            ErrorKind::Io | ErrorKind::Format =>
+                UserInteractError::IOError { cause: err.into() },
+            _ => UserInteractError::InvalidUserInput(
+                InvalidInputKind::InvalidCommandLineArguments {
+                    details: err,
+                }
+            ),
         }
     })?;
 
@@ -52,9 +80,11 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
     let config_contents = config_parsing::parse_config(config_file_info, config_file)?;
 
     macro_rules! get_config_key {
-        ($key:ident) => {
-            config_contents.$key
-                .ok_or(UserInteractError::InvalidUserInput)?
+        ($type:ty, $key:tt) => {
+            config_contents.get::<$type>(ConfigContentsKey::$key)?
+        };
+        ($key:tt) => {
+            config_contents.get(ConfigContentsKey::$key)?
         };
     }
 
@@ -78,13 +108,15 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
                     ..
                 } => file,
                 Commands::UpdateKernel { .. } => {
-                    get_config_key!(upstream_kernel)
+                    get_config_key!(String, UpstreamKernel).to_owned()
                 },
             };
 
-            let boot_kernel = get_config_key!(boot_kernel);
-            let mkinitcpio_preset = get_config_key!(mkinitcpio_preset);
-            let hard_link_default = get_config_key!(hard_link_default);
+            let boot_kernel = get_config_key!(String, BootKernel)
+                .to_owned();
+            let mkinitcpio_preset = get_config_key!(String, MkinitcpioPreset)
+                .to_owned();
+            let hard_link_default = *get_config_key!(DefaultHardLink);
 
             let do_hard_link = match (hard_link_flag, no_hard_link_flag) {
                 (false, false) => hard_link_default,

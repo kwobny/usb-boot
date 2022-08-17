@@ -25,7 +25,7 @@ fn parse_config_recursive (
                 continue 'outer;
             }
         }
-        return Err(UserInteractError::UserInputError);
+        return Err(UserInteractError::InvalidUserInput);
     }
     return Ok(());
 }
@@ -36,7 +36,7 @@ fn get_config_from_file(config_file: &str) -> Result<Value, UserInteractError> {
     fs::read_to_string(config_file)
         .map_err(|_| UserInteractError::IOError)?
         .parse::<Value>()
-        .map_err(|_| UserInteractError::UserInputError)
+        .map_err(|_| UserInteractError::InvalidUserInput)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -68,7 +68,7 @@ Result<ConfigContents, UserInteractError> {
         ($value:expr, $variant:path) => {
             match $value {
                 $variant(x) => x,
-                _ => return Err(UserInteractError::UserInputError),
+                _ => return Err(UserInteractError::InvalidUserInput),
             }
         };
     }
@@ -93,7 +93,7 @@ Result<ConfigContents, UserInteractError> {
     let config_root = get_config_from_file(config_file)?;
     let root_table = match config_root {
         Value::Table(x) => x,
-        _ => return Err(UserInteractError::UserInputError),
+        _ => return Err(UserInteractError::InvalidUserInput),
     };
 
     parse_config_recursive(&mut config_contents, root_table, &mut [

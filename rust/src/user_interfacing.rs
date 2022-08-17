@@ -17,7 +17,7 @@ pub enum OperationRequest {
 
 pub enum UserInteractError {
     /// An error caused by invalid input from the user.
-    UserInputError,
+    InvalidUserInput,
     /// An error in communication with the user.
     IOError,
 }
@@ -41,7 +41,7 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
     let cli_args = Cli::try_parse().map_err(|err| {
         match err.kind() {
             ErrorKind::Io | ErrorKind::Format => UserInteractError::IOError,
-            _ => UserInteractError::UserInputError,
+            _ => UserInteractError::InvalidUserInput,
         }
     })?;
 
@@ -54,7 +54,7 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
     macro_rules! get_config_key {
         ($key:ident) => {
             config_contents.$key
-                .ok_or(UserInteractError::UserInputError)?
+                .ok_or(UserInteractError::InvalidUserInput)?
         };
     }
 

@@ -1,6 +1,8 @@
 mod cmdline_parsing;
 mod config_parsing;
 
+use std::{fmt::Display, error::Error};
+
 use clap::{Parser, ErrorKind};
 
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
@@ -17,6 +19,7 @@ pub enum OperationRequest {
 
 /// All key fields are relative to the root of the config file.
 /// Keys in tables use dots as separators between key components.
+#[derive(Debug)]
 pub enum InvalidInputKind {
     InvalidCommandLineArguments {
         details: clap::error::Error,
@@ -36,6 +39,7 @@ pub enum InvalidInputKind {
         actual_type: &'static str,
     },
 }
+#[derive(Debug)]
 pub enum UserInteractError {
     /// An error caused by invalid input from the user.
     InvalidUserInput(InvalidInputKind),
@@ -43,6 +47,36 @@ pub enum UserInteractError {
     IOError {
         cause: anyhow::Error,
     },
+}
+impl Display for UserInteractError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            UserInteractError::InvalidUserInput(_) =>
+                writeln!(f, "invalid user input/configuration")?,
+            UserInteractError::IOError { .. } =>
+                writeln!(f, "io error when trying to interact with user")?,
+        }
+        // writeln!(f)?;
+        // if let Some(source) = self.source() {
+        //     Display::fmt(source, f)?;
+        // }
+
+        Ok(())
+    }
+}
+impl std::error::Error for UserInteractError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            UserInteractError::InvalidUserInput(kind) => match kind {
+                InvalidInputKind::InvalidCommandLineArguments { details } =>
+                    Some(details),
+                InvalidInputKind::InvalidConfigSyntax { cause } =>
+                    Some(cause),
+                _ => None,
+            },
+            UserInteractError::IOError { cause } => Some(cause.as_ref()),
+        }
+    }
 }
 
 /// This function interacts with the user.

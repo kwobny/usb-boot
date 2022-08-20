@@ -51,15 +51,50 @@ pub enum UserInteractError {
 impl Display for UserInteractError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            UserInteractError::InvalidUserInput(_) =>
-                writeln!(f, "invalid user input/configuration")?,
+            UserInteractError::InvalidUserInput(kind) => {
+                write!(f, "invalid user input/configuration: ")?;
+                match kind {
+                    InvalidInputKind::InvalidCommandLineArguments { .. } =>
+                        write!(f, "invalid command line arguments")?,
+                    InvalidInputKind::RequiredKeyMissingInConfig {
+                        key,
+                    } => {
+                        write!(f,
+                            "the key \"{}\" is required to execute the \
+                            specified command, but it is not present \
+                            in the config file",
+                            key,
+                        )?;
+                    },
+                    InvalidInputKind::UnknownKeyInConfig {
+                        key,
+                    } => {
+                        write!(f,
+                            "the key \"{}\" was found in the config file,\
+                            but it is not a valid/recognized config key",
+                            key,
+                        )?;
+                    },
+                    InvalidInputKind::InvalidConfigSyntax { .. } =>
+                        write!(f,
+                            "there is a syntax error in the config file",
+                        )?,
+                    InvalidInputKind::UnexpectedValueType {
+                        key,
+                        expected_type,
+                        actual_type,
+                    } => {
+                        write!(f,
+                            "expected a \"{expected_type}\" for the type \
+                            of the value of the key \"{key}\", but got a \
+                            \"{actual_type}\" instead",
+                        )?;
+                    },
+                }
+            },
             UserInteractError::IOError { .. } =>
-                writeln!(f, "io error when trying to interact with user")?,
+                write!(f, "io error when trying to interact with user")?,
         }
-        // writeln!(f)?;
-        // if let Some(source) = self.source() {
-        //     Display::fmt(source, f)?;
-        // }
 
         Ok(())
     }

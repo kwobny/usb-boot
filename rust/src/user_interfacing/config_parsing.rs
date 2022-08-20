@@ -3,11 +3,11 @@
 //! with the config file is the sole responsibility of this
 //! module.
 
-use std::{fs, collections::HashMap};
+use std::{fs, collections::HashMap, io::ErrorKind};
 
 use toml::{Value, value::Table};
 
-use super::{UserInteractError, InvalidInputKind};
+use super::{UserInteractError, InvalidInputKind, IOErrorKind};
 
 macro_rules! direct_mapping {
     ($expected_type:expr, $config_key:expr => $contents_key:tt) => {
@@ -60,6 +60,10 @@ macro_rules! impl_from_toml_value {
 #[derive(Clone, Copy, Debug)]
 pub struct ConfigFileInfo<'a> {
     pub default_file: &'a str,
+    /// Flag denoting whether it is ok for the config file to not
+    /// exist. If this is false, the value will additionally be
+    /// checked from command line arguments.
+    pub file_must_exist: bool,
 
     pub default_options_table_name: &'a str,
     // Each of the default options keys must be relative to the
@@ -183,17 +187,29 @@ fn value_is_type<T>(
 
 /// This function reads the file provided, and returns
 /// the root table of the config.
-fn get_config_from_file(config_file: &str) -> Result<Value, UserInteractError> {
-    fs::read_to_string(config_file)
-        .map_err(|err| UserInteractError::IOError {
-            cause: err.into(),
-        })?
-        .parse::<Value>()
-        .map_err(|err| UserInteractError::InvalidUserInput(
-            InvalidInputKind::InvalidConfigSyntax {
-                cause: err,
-            }
-        ))
+/// Returns Ok(None) if the config file does not exist,
+/// and file_must_exist is false.
+/// Returns Err if the config file does not exist and
+/// file_must_exist is true.
+fn get_config_from_file(config_file: &str, file_must_exist: bool) -> Result<Option<Value>, UserInteractError> {
+    match fs::read_to_string(config_file) {
+        Ok(s) => match s.parse::<Value>() {
+            Ok(ok) => Ok(Some(ok)),
+            Err(err) => Err(UserInteractError::InvalidUserInput(
+                InvalidInputKind::InvalidConfigSyntax {
+                    cause: err,
+                }
+            )),
+        },
+        Err(err) => match err.kind() {
+            ErrorKind::NotFound if !file_must_exist => Ok(None),
+            _ => Err(UserInteractError::IOError(
+                IOErrorKind::ConfigAccessFailed {
+                    source: err,
+                }
+            )),
+        }
+    }
 }
 
 fn parse_config_recursive(
@@ -259,23 +275,30 @@ fn parse_config_recursive(
 /// This function parses the config file for this program,
 /// and returns a struct representing its contents.
 /// This function reads nothing but the config file.
-pub fn parse_config(config_info: ConfigFileInfo, config_file: &str)
-    -> Result<ConfigContents, UserInteractError>
-{
+pub fn parse_config(
+    config_info: ConfigFileInfo,
+    config_must_exist: bool,
+    config_file: &str
+) -> Result<ConfigContents, UserInteractError> {
     let mut hash_map = HashMap::new();
     let config_mapping = config_mapping_from_config_info(config_info);
-    let config_root = get_config_from_file(config_file)?;
+    let config_root = get_config_from_file(config_file, config_must_exist)?;
 
-    parse_config_recursive(&config_mapping, "", &mut hash_map, config_root)?;
+    let config_file_exists = config_root.is_some();
+    if let Some(x) = config_root {
+        parse_config_recursive(&config_mapping, "", &mut hash_map, x)?;
+    }
 
     Ok(ConfigContents {
         data: hash_map,
+        config_file_exists,
         config_mapping,
     })
 }
 
 pub struct ConfigContents {
     data: HashMap<ConfigContentsKey, Value>,
+    config_file_exists: bool,
     config_mapping: Nest,
 }
 impl ConfigContents {
@@ -317,6 +340,14 @@ impl ConfigContents {
     pub fn get<T>(&self, key: ConfigContentsKey) -> Result<&T, UserInteractError> where
         T: FromTomlValue,
     {
+        if !self.config_file_exists {
+            return Err(UserInteractError::InvalidUserInput(
+                InvalidInputKind::NoConfigButKeyRequired {
+                    key: self.get_key_name_from_enum_key(key),
+                }
+            ));
+        }
+
         let possible_value = self.data.get(&key);
         let value = possible_value.ok_or_else(||
             UserInteractError::InvalidUserInput(
@@ -340,5 +371,9 @@ programming error.
         };
 
         Ok(converted_value)
+    }
+
+    pub fn config_file_exists(&self) -> bool {
+        self.config_file_exists
     }
 }

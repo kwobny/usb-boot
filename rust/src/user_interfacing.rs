@@ -1,14 +1,21 @@
 mod cmdline_parsing;
 mod config_parsing;
 
-use std::{fmt::Display, error::Error};
+use std::{fmt::Display, error::Error, io};
 
 use clap::{Parser, ErrorKind};
 
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
-use config_parsing::{ConfigFileInfo, ConfigContentsKey};
+use config_parsing::ConfigContentsKey;
 
-pub enum OperationRequest {
+pub use config_parsing::ConfigFileInfo;
+
+pub struct OperationRequest {
+    pub request_kind: RequestKind,
+
+    pub config_file_existed: bool,
+}
+pub enum RequestKind {
     ChangeKernel {
         source: String,
         destination: String,
@@ -27,12 +34,22 @@ pub enum InvalidInputKind {
     RequiredKeyMissingInConfig {
         key: String,
     },
+    /// The command to execute requires a certain key from the
+    /// config file, but there is no config file.
+    NoConfigButKeyRequired {
+        key: String,
+    },
+    /// An unrecognized key was present in the config.
     UnknownKeyInConfig {
         key: String,
     },
     InvalidConfigSyntax {
         cause: toml::de::Error,
     },
+    /// A value in the config file was expected to be one type
+    /// but was found to be another type.
+    /// This error is detected when the config is parsed, regardless
+    /// of if the program actually queries/needs the key/value.
     UnexpectedValueType {
         key: String,
         expected_type: &'static str,
@@ -40,13 +57,29 @@ pub enum InvalidInputKind {
     },
 }
 #[derive(Debug)]
+pub enum IOErrorKind {
+    /// Failed to access config file due to it not existing,
+    /// permission errors, etc.
+    ConfigAccessFailed {
+        source: io::Error,
+    },
+    Other {
+        source: anyhow::Error,
+    },
+}
+#[derive(Debug)]
+/// A type representing an error that occurred while trying to
+/// interact with the user.
+/// Use InvalidUserInput for when the CONTENT itself of the user's
+/// input is invalid.
+/// Use IOError for when the program COULD NOT ACCESS the content.
+/// So for example, a config file not existing or readable would be
+/// an IOError.
 pub enum UserInteractError {
     /// An error caused by invalid input from the user.
     InvalidUserInput(InvalidInputKind),
     /// An error in communication with the user.
-    IOError {
-        cause: anyhow::Error,
-    },
+    IOError(IOErrorKind),
 }
 impl Display for UserInteractError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -66,6 +99,11 @@ impl Display for UserInteractError {
                             key,
                         )?;
                     },
+                    InvalidInputKind::NoConfigButKeyRequired { key } =>
+                        write!(f,
+                            "the key \"{key}\" is required, but there is \
+                            no config file",
+                        )?,
                     InvalidInputKind::UnknownKeyInConfig {
                         key,
                     } => {
@@ -90,10 +128,17 @@ impl Display for UserInteractError {
                             \"{actual_type}\" instead",
                         )?;
                     },
-                }
+                };
             },
-            UserInteractError::IOError { .. } =>
-                write!(f, "io error when trying to interact with user")?,
+            UserInteractError::IOError(kind) => {
+                write!(f, "io error when trying to interact with user: ")?;
+                match kind {
+                    IOErrorKind::ConfigAccessFailed { source } =>
+                        write!(f, "failed to access config file")?,
+                    IOErrorKind::Other { source } =>
+                        write!(f, "other error")?,
+                };
+            },
         }
 
         Ok(())
@@ -109,7 +154,11 @@ impl std::error::Error for UserInteractError {
                     Some(cause),
                 _ => None,
             },
-            UserInteractError::IOError { cause } => Some(cause.as_ref()),
+            UserInteractError::IOError(kind) => match kind {
+                IOErrorKind::ConfigAccessFailed { source } => Some(source),
+                IOErrorKind::Other { source } =>
+                    Some(source.as_ref()),
+            }
         }
     }
 }
@@ -133,7 +182,9 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
     let cli_args = Cli::try_parse().map_err(|err| {
         match err.kind() {
             ErrorKind::Io | ErrorKind::Format =>
-                UserInteractError::IOError { cause: err.into() },
+                UserInteractError::IOError(IOErrorKind::Other {
+                    source: err.into(),
+                }),
             _ => UserInteractError::InvalidUserInput(
                 InvalidInputKind::InvalidCommandLineArguments {
                     details: err,
@@ -146,7 +197,12 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
         Some(ref x) => &x,
         None => config_file_info.default_file,
     };
-    let config_contents = config_parsing::parse_config(config_file_info, config_file)?;
+    let config_must_exist = config_file_info.file_must_exist || cli_args.config_must_exist;
+    let config_contents = config_parsing::parse_config(
+        config_file_info,
+        config_must_exist,
+        config_file,
+    )?;
 
     macro_rules! get_config_key {
         ($type:ty, $key:tt) => {
@@ -157,7 +213,7 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
         };
     }
 
-    match cli_args.command {
+    let operation_kind = match cli_args.command {
         Commands::ChangeKernel {
             shared_args: KernelCommandsArgs {
                 hard_link: hard_link_flag,
@@ -193,12 +249,17 @@ pub fn interact_with_user(config_file_info: ConfigFileInfo) -> Result<OperationR
                 _ => panic!(), // if (true, true)
             };
 
-            Ok(OperationRequest::ChangeKernel {
+            RequestKind::ChangeKernel {
                 source: source_kernel_file,
                 destination: boot_kernel,
                 hard_link: do_hard_link,
                 mkinitcpio_preset,
-            })
+            }
         },
-    }
+    };
+
+    Ok(OperationRequest {
+        request_kind: operation_kind,
+        config_file_existed: config_contents.config_file_exists(),
+    })
 }

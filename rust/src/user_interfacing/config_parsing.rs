@@ -10,10 +10,13 @@ use toml::{Value, value::Table};
 use super::{UserInteractError, InvalidInputKind};
 
 macro_rules! direct_mapping {
-    ($config_key:expr => $contents_key:tt) => {
+    ($expected_type:expr, $config_key:expr => $contents_key:tt) => {
         ConfigMapping {
             config_key: $config_key,
-            kind: MappingKind::Direct(ConfigContentsKey::$contents_key),
+            kind: MappingKind::Direct(Direct {
+                contents_key: ConfigContentsKey::$contents_key,
+                expected_type: $expected_type,
+            }),
         }
     };
 }
@@ -32,15 +35,23 @@ macro_rules! nested_mapping {
 
 macro_rules! impl_from_toml_value {
     // The parameter $type_str represents the type of $impl_target.
-    ($($impl_target:ty, $type_str:literal, $value_variant:path),+ $(,)?) => {
-        $(impl FromTomlValue for $impl_target {
+    ($($impl_target:tt, $type_str:literal, $checker_name:tt, $value_variant:path),+ $(,)?) => {
+        $(
+        impl FromTomlValue for $impl_target {
             fn convert(value: &Value) -> Result<&Self, &'static str> {
                 match value {
                     $value_variant(v) => Ok(v),
                     _ => Err($type_str),
                 }
             }
-        })+
+        }
+        struct $checker_name;
+        impl ValueTypeChecker for $checker_name {
+            fn is_this_type(&self, value: &Value) -> Result<(), &'static str> {
+                <$impl_target as FromTomlValue>::convert(value).map(|_| ())
+            }
+        }
+        )+
     };
 }
 
@@ -73,20 +84,24 @@ fn config_mapping_from_config_info(config_info: ConfigFileInfo) -> Nest {
     Nest {
         mappings: Box::new([
             direct_mapping!(
+                &ExpectingString,
                 config_info.boot_kernel_key.to_string()
                 => BootKernel
             ),
             direct_mapping!(
+                &ExpectingString,
                 config_info.upstream_kernel_key.to_string()
                 => UpstreamKernel
             ),
             direct_mapping!(
+                &ExpectingString,
                 config_info.mkinitcpio_preset_key.to_string()
                 => MkinitcpioPreset
             ),
             nested_mapping!(
                 config_info.default_options_table_name.to_string(),
                 direct_mapping!(
+                    &ExpectingBoolean,
                     config_info.default_hard_link_key.to_string()
                     => DefaultHardLink
                 ),
@@ -96,9 +111,9 @@ fn config_mapping_from_config_info(config_info: ConfigFileInfo) -> Nest {
 }
 
 impl_from_toml_value![
-    String, "String", Value::String,
-    bool, "Boolean", Value::Boolean,
-    Table, "Table", Value::Table,
+    String, "String", ExpectingString, Value::String,
+    bool, "Boolean", ExpectingBoolean, Value::Boolean,
+    Table, "Table", ExpectingTable, Value::Table,
 ];
 
 //---------------- END CONFIG CONSTANTS AREA ------------------
@@ -106,8 +121,12 @@ impl_from_toml_value![
 struct Nest {
     mappings: Box<[ConfigMapping]>,
 }
+struct Direct {
+    contents_key: ConfigContentsKey,
+    expected_type: &'static dyn ValueTypeChecker,
+}
 enum MappingKind {
-    Direct(ConfigContentsKey),
+    Direct(Direct),
     Nest(Nest),
 }
 struct ConfigMapping {
@@ -123,6 +142,9 @@ trait FromTomlValue {
     // i.e. the type of Self.
     fn convert(value: &Value) -> Result<&Self, &'static str>;
 }
+trait ValueTypeChecker {
+    fn is_this_type(&self, value: &Value) -> Result<(), &'static str>;
+}
 fn unwrap_toml_value<R, T>(key: T, value: &Value)
     -> Result<&R, UserInteractError> where
     R: FromTomlValue,
@@ -135,6 +157,28 @@ fn unwrap_toml_value<R, T>(key: T, value: &Value)
             actual_type: value.type_str(),
         }
     ))
+}
+fn unwrap_toml_value_simple<R>(value: &Value) -> Result<&R, ()> where
+    R: FromTomlValue,
+{
+    R::convert(value).map_err(|_| ())
+}
+fn value_is_type<T>(
+    expected_type: &dyn ValueTypeChecker,
+    key: T,
+    value: &Value,
+) -> Result<(), UserInteractError> where
+    T: FnOnce() -> String,
+{
+    expected_type.is_this_type(value).map_err(|expected|
+        UserInteractError::InvalidUserInput(
+            InvalidInputKind::UnexpectedValueType {
+                key: key(),
+                expected_type: expected,
+                actual_type: value.type_str(),
+            }
+        )
+    )
 }
 
 /// This function reads the file provided, and returns
@@ -159,16 +203,7 @@ fn parse_config_recursive(
     table: Value,
 ) -> Result<(), UserInteractError> {
     let mappings = &mappings.mappings;
-    let table = Table::convert(&table)
-        .map_err(|expected|
-            UserInteractError::InvalidUserInput(
-                InvalidInputKind::UnexpectedValueType {
-                    key: current_key_section.to_string(),
-                    expected_type: expected,
-                    actual_type: table.type_str(),
-                }
-            )
-        )?;
+    let table: &Table = unwrap_toml_value(|| current_key_section.to_string(), &table)?;
 
     for (key, value) in table {
         let is_valid_key = mappings.iter().find(
@@ -182,10 +217,15 @@ fn parse_config_recursive(
             )
         )?;
         match &is_valid_key.kind {
-            MappingKind::Direct(to) => {
-                hash_map.insert(*to, value.clone());
+            MappingKind::Direct(Direct {
+                contents_key,
+                expected_type,
+            }) => {
+                value_is_type(*expected_type, || current_key_section.to_string(), value)?;
+                hash_map.insert(*contents_key, value.clone());
             },
             MappingKind::Nest(nested_mappings) => {
+                value_is_type(&ExpectingTable, || key.to_string(), value)?;
                 parse_config_recursive(
                     nested_mappings,
                     &is_valid_key.config_key,
@@ -247,7 +287,7 @@ impl ConfigContents {
         for mapping in nest.mappings.iter() {
             match &mapping.kind {
                 MappingKind::Direct(enum_key) => {
-                    if *enum_key == key {
+                    if enum_key.contents_key == key {
                         return Some(mapping.config_key.to_owned());
                     }
                 },
@@ -286,10 +326,18 @@ impl ConfigContents {
             )
         )?;
 
-        let converted_value = unwrap_toml_value(
-            || self.get_key_name_from_enum_key(key),
-            value,
-        )?;
+        let converted_value = match unwrap_toml_value_simple(value) {
+            Err(_) => panic!(
+r#"the key "{}" was queried after parsing the config, but the type of
+the corresponding value differed from the type that the caller expected.
+This means that the type that is expected by the config code is different
+than the type that is expected by the code calling it. This is a
+programming error.
+"#,
+                self.get_key_name_from_enum_key(key),
+            ),
+            Ok(x) => x,
+        };
 
         Ok(converted_value)
     }

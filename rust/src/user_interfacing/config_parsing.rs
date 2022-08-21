@@ -9,6 +9,7 @@ use super::UserInteractError;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+#[serde(rename_all = "kebab-case")]
 pub struct ConfigContents {
     pub boot_kernel: String,
     pub upstream_kernel: String,
@@ -17,8 +18,16 @@ pub struct ConfigContents {
     pub default_options: DefaultOptions,
 }
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct DefaultOptions {
     pub hard_link: bool,
+}
+impl Default for DefaultOptions {
+    fn default() -> Self {
+        DefaultOptions {
+            hard_link: false,
+        }
+    }
 }
 
 /// This function parses the config file for this program,

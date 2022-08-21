@@ -1,10 +1,14 @@
 mod cmdline_parsing;
 mod config_parsing;
 
+#[cfg(test)]
+mod tests;
+
 use std::io;
 use clap::{Parser, ErrorKind};
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
 
+#[derive(Debug)]
 pub enum OperationRequest {
     ChangeKernel {
         source: String,
@@ -47,13 +51,19 @@ pub enum UserInteractError {
 /// based on command line arguments and a config file.
 /// It also prints various things to the terminal depending
 /// on the situation, e.g. to display help text in case
-/// the command line arguments were invalid.<br>
+/// the command line arguments were invalid.
+///
 /// This function itself does not make any decisions on what the
 /// program does. It just determines and returns the user's request.
 /// It is up to the rest of the program's discretion whether to or
 /// how to carry out the user's request.
 /// Thus, this function does not read anything other than command
-/// line arguments and a config file to determine what to return.<br>
+/// line arguments and a config file to determine what to return.
+/// This function is designed so that if the caller just calls this
+/// function and does nothing else, no changes will be made to the system,
+/// no matter how many times this function is called. In other words,
+/// this function is suitable for dry running purposes.
+///
 /// This function can succeed or fail. On success, it returns a
 /// struct representing the user's request for the program.
 /// On failure, it returns an error.

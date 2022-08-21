@@ -4,7 +4,7 @@
 
 use clap::{Args, Parser, Subcommand};
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 pub struct Cli {
     #[clap(short, long, value_parser)]
     pub config: Option<String>,
@@ -13,7 +13,7 @@ pub struct Cli {
     pub command: Commands,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum Commands {
     #[clap(name = "change-kernel")]
     ChangeKernel {
@@ -30,7 +30,7 @@ pub enum Commands {
     }
 }
 
-#[derive(Args)]
+#[derive(Args, Debug)]
 pub struct KernelCommandsArgs {
     #[clap(long = "hard-link", action, group = "hard_link")]
     pub hard_link: bool,

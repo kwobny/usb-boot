@@ -7,7 +7,7 @@ use std::fs;
 use serde::Deserialize;
 use super::UserInteractError;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConfigContents {
@@ -17,7 +17,8 @@ pub struct ConfigContents {
 
     pub default_options: DefaultOptions,
 }
-#[derive(Deserialize)]
+
+#[derive(Deserialize, Debug)]
 #[serde(default)]
 pub struct DefaultOptions {
     pub hard_link: bool,

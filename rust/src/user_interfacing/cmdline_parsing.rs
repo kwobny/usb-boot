@@ -9,9 +9,6 @@ pub struct Cli {
     #[clap(short, long, value_parser)]
     pub config: Option<String>,
 
-    #[clap(long, action)]
-    pub config_must_exist: bool,
-
     #[clap(subcommand)]
     pub command: Commands,
 }

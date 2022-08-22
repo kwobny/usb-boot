@@ -15,10 +15,13 @@ pub struct ConfigContents {
     pub upstream_kernel: String,
     pub mkinitcpio_preset: String,
 
+    #[serde(default)]
     pub default_options: DefaultOptions,
 }
 
 #[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "kebab-case")]
 #[serde(default)]
 pub struct DefaultOptions {
     pub hard_link: bool,

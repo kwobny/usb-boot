@@ -4,7 +4,7 @@ mod config_parsing;
 #[cfg(test)]
 mod tests;
 
-use std::io;
+use std::{io, ffi::OsString, env};
 use clap::{Parser, ErrorKind};
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
 
@@ -67,8 +67,19 @@ pub enum UserInteractError {
 /// This function can succeed or fail. On success, it returns a
 /// struct representing the user's request for the program.
 /// On failure, it returns an error.
-pub fn interact_with_user(default_config_file: &str) -> Result<OperationRequest, UserInteractError> {
-    let cli_args = Cli::try_parse().map_err(|err| {
+pub fn interact_with_user(default_config_file: &str)
+    -> Result<OperationRequest, UserInteractError>
+{
+    interact_with_user_provided_cmdline(
+        default_config_file, env::args_os(),
+    )
+}
+fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline: C)
+    -> Result<OperationRequest, UserInteractError> where
+    C: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    let cli_args = Cli::try_parse_from(cmdline).map_err(|err| {
         match err.kind() {
             ErrorKind::Io | ErrorKind::Format =>
                 UserInteractError::CliIOError {

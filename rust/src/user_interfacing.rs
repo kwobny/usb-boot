@@ -9,13 +9,16 @@ use clap::{Parser, ErrorKind};
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
 
 #[derive(Debug)]
+pub struct ChangeKernel {
+    pub source: String,
+    pub destination: String,
+    pub hard_link: bool,
+    pub mkinitcpio_preset: String,
+}
+
+#[derive(Debug)]
 pub enum OperationRequest {
-    ChangeKernel {
-        source: String,
-        destination: String,
-        hard_link: bool,
-        mkinitcpio_preset: String,
-    }
+    ChangeKernel(ChangeKernel),
 }
 
 /// A type representing an error that occurred while trying to
@@ -56,7 +59,11 @@ pub enum UserInteractError {
 /// This function itself does not make any decisions on what the
 /// program does. It just determines and returns the user's request.
 /// It is up to the rest of the program's discretion whether to or
-/// how to carry out the user's request.
+/// how to carry out the user's request. This function does no validation
+/// of whether the request is valid or not. The request may contain
+/// invalid data, so it is the calling code's job to make sure that
+/// the request makes sense. The request directly represents what the
+/// user tells the program to do, which may or may not be valid.
 /// Thus, this function does not read anything other than command
 /// line arguments and a config file to determine what to return.
 /// This function is designed so that if the caller just calls this
@@ -131,12 +138,12 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
                 _ => panic!(), // if (true, true)
             };
 
-            OperationRequest::ChangeKernel {
+            OperationRequest::ChangeKernel(ChangeKernel {
                 source: source_kernel_file,
                 destination: boot_kernel,
                 hard_link: do_hard_link,
                 mkinitcpio_preset,
-            }
+            })
         },
     };
 

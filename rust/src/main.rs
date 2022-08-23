@@ -1,3 +1,3 @@
-fn main() {
-    usb_boot::run();
+fn main() -> Result<(), anyhow::Error> {
+    usb_boot::run()
 }

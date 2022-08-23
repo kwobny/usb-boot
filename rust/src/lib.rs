@@ -84,6 +84,10 @@ fn handle_change_kernel(details: ChangeKernel) -> Result<(), anyhow::Error> {
         );
     }
 
+    // Delete destination before copying / hard linking.
+    fs::remove_file(&details.destination)
+        .context("failed to unlink destination file")?;
+
     // Copy/hard link the source file to destination.
     if details.hard_link {
         fs::hard_link(&details.source, &details.destination)

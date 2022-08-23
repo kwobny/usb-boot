@@ -15,6 +15,9 @@ die() {
     exit 1
 }
 
+# Ensure the script is not running as root.
+[[ "$EUID" == 0 ]] && die 'Please do not run as root.'
+
 cd "$(dirname "$(realpath -e "$0")")" ||
     die 'failed to cd into where the deploy script is located.'
 

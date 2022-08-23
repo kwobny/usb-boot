@@ -7,6 +7,8 @@
 # must be a bash script that uses the functions defined in this install
 # script to define what and how to install the files in this project.
 
+set -u
+
 FILE_MAPPING=./file_install_mapping.bash
 
 log_error() {
@@ -108,5 +110,7 @@ install_to_directory() {
 }
 
 cd "$(dirname "$(realpath -e "$0")")" || error 'failed to cd into where install script is located.'
+
+./build
 
 source "$FILE_MAPPING"

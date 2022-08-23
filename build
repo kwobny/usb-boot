@@ -1,0 +1,22 @@
+#!/bin/bash
+
+# This is the build script for this project.
+# This script builds everything that needs to be built,
+# so that everything can be installed right after.
+
+set -u
+
+log_error() {
+    printf "$1\n" >&2
+}
+die() {
+    [[ -v 1 ]] && log_error "$1"
+    exit 1
+}
+
+cd "$(dirname "$(realpath -e "$0")")" ||
+    die 'failed to cd into where the build script is located.'
+
+cd rust || die 'failed to cd into directory containing rust code.'
+
+cargo build --release || die 'failed to build rust code.'

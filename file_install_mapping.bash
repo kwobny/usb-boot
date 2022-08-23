@@ -9,3 +9,5 @@ install_to_directory mkinitcpio_hooks/* /etc/initcpio/install/
 install_file -d usb-boot.preset /etc/mkinitcpio.d/
 install_file -f mkinitcpio_image_filters/add_microcode \
     /usr/local/bin/embed_microcode_into_initramfs
+
+install_file -f rust/target/release/usb_boot /usr/local/bin/usbbootmgr

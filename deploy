@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# This script deploys the current project files to this machine.
+# It first builds the project, then installs it.
+# This script should be called as a normal user, not root
+# (unless the project directory is in the root home folder?).
+
+set -u
+
+log_error() {
+    printf "$1\n" >&2
+}
+die() {
+    [[ -v 1 ]] && log_error "$1"
+    exit 1
+}
+
+cd "$(dirname "$(realpath -e "$0")")" ||
+    die 'failed to cd into where the deploy script is located.'
+
+./build && sudo ./install

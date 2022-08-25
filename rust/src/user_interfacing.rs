@@ -10,8 +10,7 @@ use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
 
 #[derive(Debug)]
 pub enum CompareKernelsOption {
-    False,
-    True,
+    Full,
     Efficient,
 }
 
@@ -21,7 +20,7 @@ pub struct ChangeKernel {
     pub destination: String,
     pub hard_link: bool,
     pub mkinitcpio_preset: String,
-    pub compare_kernels: CompareKernelsOption,
+    pub compare_kernels: Option<CompareKernelsOption>,
 }
 
 #[derive(Debug)]
@@ -152,9 +151,9 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
                 Some(x) => &x[..],
             };
             let compare_kernels = match compare_kernels {
-                "false" => CompareKernelsOption::False,
-                "true" => CompareKernelsOption::True,
-                "efficient" => CompareKernelsOption::Efficient,
+                "false" => None,
+                "true" => Some(CompareKernelsOption::Full),
+                "efficient" => Some(CompareKernelsOption::Efficient),
                 _ => panic!(),
             };
 

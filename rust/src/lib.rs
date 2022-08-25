@@ -6,7 +6,7 @@ use std::path::Path;
 use std::os::linux::fs::MetadataExt;
 
 use anyhow::Context;
-use user_interfacing::{OperationRequest, UserInteractError, ChangeKernel};
+use user_interfacing::{OperationRequest, UserInteractError, ChangeKernel, CompareKernelsOption};
 
 const DEFAULT_CONFIG_FILE: &str = "/etc/usb-boot/usbbootmgr.toml";
 const FILE_UTILITY: &str = "/usr/bin/file";
@@ -179,6 +179,19 @@ fn handle_change_kernel(details: ChangeKernel) -> Result<(), anyhow::Error> {
         );
     }
 
+    // If compare kernels is on, check if the source and destination
+    // have the same contents. If they do, then don't regenerate initramfs
+    // at the end.
+    let regenerate_initramfs = if let Some(x) = details.compare_kernels {
+        let efficient = match x {
+            CompareKernelsOption::Full => false,
+            CompareKernelsOption::Efficient => true,
+        };
+        !file_contents_are_identical(efficient, &details.source, &details.destination)?
+    } else {
+        true
+    };
+
     // Delete destination before copying / hard linking.
     fs::remove_file(&details.destination)
         .context("failed to unlink destination file")?;
@@ -193,11 +206,13 @@ fn handle_change_kernel(details: ChangeKernel) -> Result<(), anyhow::Error> {
     }
 
     // Regenerate usb boot initramfs.
-    let exit_status = Command::new(MKINITCPIO_PROGRAM)
-        .args(["--preset", &details.mkinitcpio_preset])
-        .status().context("failed to execute mkinitcpio")?;
-    if !exit_status.success() {
-        anyhow::bail!("failed to regenerate usb boot initramfs images");
+    if regenerate_initramfs {
+        let exit_status = Command::new(MKINITCPIO_PROGRAM)
+            .args(["--preset", &details.mkinitcpio_preset])
+            .status().context("failed to execute mkinitcpio")?;
+        if !exit_status.success() {
+            anyhow::bail!("failed to regenerate usb boot initramfs images");
+        }
     }
 
     Ok(())

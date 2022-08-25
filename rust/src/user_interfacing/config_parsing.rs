@@ -25,11 +25,13 @@ pub struct ConfigContents {
 #[serde(default)]
 pub struct DefaultOptions {
     pub hard_link: bool,
+    pub compare_kernels: String,
 }
 impl Default for DefaultOptions {
     fn default() -> Self {
         DefaultOptions {
             hard_link: false,
+            compare_kernels: "false".to_string(),
         }
     }
 }

@@ -9,11 +9,19 @@ use clap::{Parser, ErrorKind};
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
 
 #[derive(Debug)]
+pub enum CompareKernelsOption {
+    False,
+    True,
+    Efficient,
+}
+
+#[derive(Debug)]
 pub struct ChangeKernel {
     pub source: String,
     pub destination: String,
     pub hard_link: bool,
     pub mkinitcpio_preset: String,
+    pub compare_kernels: CompareKernelsOption,
 }
 
 #[derive(Debug)]
@@ -109,6 +117,7 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
             shared_args: KernelCommandsArgs {
                 hard_link: hard_link_flag,
                 no_hard_link: no_hard_link_flag,
+                ref compare_kernels,
             },
             ..
         } |
@@ -116,6 +125,7 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
             shared_args: KernelCommandsArgs {
                 hard_link: hard_link_flag,
                 no_hard_link: no_hard_link_flag,
+                ref compare_kernels,
             },
         } => {
             let source_kernel_file = match cli_args.command {
@@ -137,12 +147,23 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
                 (a, b) if a ^ b => hard_link_flag,
                 _ => panic!(), // if (true, true)
             };
+            let compare_kernels = match compare_kernels {
+                None => &config_contents.default_options.compare_kernels[..],
+                Some(x) => &x[..],
+            };
+            let compare_kernels = match compare_kernels {
+                "false" => CompareKernelsOption::False,
+                "true" => CompareKernelsOption::True,
+                "efficient" => CompareKernelsOption::Efficient,
+                _ => panic!(),
+            };
 
             OperationRequest::ChangeKernel(ChangeKernel {
                 source: source_kernel_file,
                 destination: boot_kernel,
                 hard_link: do_hard_link,
                 mkinitcpio_preset,
+                compare_kernels,
             })
         },
     };

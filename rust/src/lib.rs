@@ -1,8 +1,9 @@
 mod user_interfacing;
 
-use std::{process::Command, fs};
-use std::io;
+use std::{process::Command, fs::{self, File, Metadata}, mem::MaybeUninit};
+use std::io::{self, BufReader, Read};
 use std::path::Path;
+use std::os::linux::fs::MetadataExt;
 
 use anyhow::Context;
 use user_interfacing::{OperationRequest, UserInteractError, ChangeKernel};
@@ -28,6 +29,100 @@ fn handle_user_interact_error(err: UserInteractError) -> Result<(), anyhow::Erro
             Ok(())
         },
     }
+}
+
+/// This function checks if the contents of two files are identical.
+/// Returns true if the contents of both files are identical.
+/// Returns false if the contents differ between the files.
+fn file_contents_are_identical(efficient: bool, left: &str, right: &str) -> Result<bool, anyhow::Error> {
+    let filenames = [left, right];
+
+    // First, check if the sizes of both files are different.
+    // If the sizes are different, then we immediately know the
+    // contents of the files are also different (assuming the sizes
+    // are accurate). If there was an error with getting the size
+    // of a file, then we abort and compare files the traditional way.
+    let mut file_metadata = [0; 2].map(|_| None);
+    if efficient {
+        let mut size_of_files = [0; 2];
+        let mut do_comparison = true;
+        for (i, file) in filenames.iter().enumerate() {
+            match fs::metadata(file) {
+                Ok(metadata) => {
+                    size_of_files[i] = metadata.len();
+                    file_metadata[i] = Some(metadata);
+                },
+                Err(_) => {
+                    do_comparison = false;
+                },
+            };
+        }
+        if do_comparison && size_of_files[0] != size_of_files[1] {
+            return Ok(false);
+        }
+    }
+
+    // Do preparation that is needed to compare both files, namely
+    // obtaining readers for both files.
+    let mut readers = [0; 2].map(|_| None);
+    for (i, (file, possible_metadata)) in (filenames.iter())
+        .zip(file_metadata).enumerate()
+    {
+        // Open both files.
+        let file_handle = File::open(file)
+            .with_context(||
+                format!("failed to open the file \"{file}\" when \
+                comparing contents of two files")
+            )?;
+
+        // Get the metadata of each file. If there is already
+        // metadata from when doing file size comparison, then use that,
+        // otherwise query metadata from the file.
+        let metadata = match possible_metadata {
+            None => {
+                file_handle.metadata().with_context(|| format!(
+                    "failed to get metadata of the file \"{file}\""
+                ))?
+            },
+            Some(x) => x,
+        };
+
+        // Construct a new BufReader with capacity set to the io
+        // block size of the file.
+        readers[i] = Some(BufReader::with_capacity(
+            metadata.st_blksize().try_into().unwrap(), file_handle,
+        ));
+    }
+    // Now do the actual comparison. Iterate over the bytes of each
+    // file, comparing them one by one. I.e do a lexicographic comparison.
+    let mut byte_iterators = readers.map(|reader|
+        reader.unwrap().bytes().peekable());
+    loop {
+        let mut done = None;
+        for byte_iter in byte_iterators.iter_mut() {
+            let current_is_done = byte_iter.peek().is_none();
+            match done {
+                None => done = Some(current_is_done),
+                Some(x) => if x ^ current_is_done {
+                    return Ok(false);
+                },
+            }
+        }
+        if done.unwrap() {
+            break;
+        }
+        let bytes_are_equal = byte_iterators[0].next().unwrap()?
+            == byte_iterators[1].next().unwrap()?;
+        if !bytes_are_equal {
+            return Ok(false);
+        }
+    }
+
+    // If the file contents weren't equal, the function must have returned
+    // false by now. If the function has gotten to this point, that means
+    // the file contents are equal.
+
+    Ok(true)
 }
 
 #[derive(thiserror::Error, Debug)]

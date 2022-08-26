@@ -1,6 +1,6 @@
 mod user_interfacing;
 
-use std::{process::Command, fs::{self, File, Metadata}, mem::MaybeUninit};
+use std::{process::Command, fs::{self, File}};
 use std::io::{self, BufReader, Read};
 use std::path::Path;
 use std::os::linux::fs::MetadataExt;

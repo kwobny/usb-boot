@@ -4,7 +4,6 @@
 //! module.
 
 use std::fs;
-use std::borrow::Cow;
 use serde::Deserialize;
 use super::UserInteractError;
 

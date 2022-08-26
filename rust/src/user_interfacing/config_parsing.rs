@@ -4,6 +4,7 @@
 //! module.
 
 use std::fs;
+use std::borrow::Cow;
 use serde::Deserialize;
 use super::UserInteractError;
 
@@ -25,15 +26,23 @@ pub struct ConfigContents {
 #[serde(default)]
 pub struct DefaultOptions {
     pub hard_link: bool,
-    pub compare_kernels: String,
+    pub compare_kernels: CompareKernels,
 }
 impl Default for DefaultOptions {
     fn default() -> Self {
         DefaultOptions {
             hard_link: false,
-            compare_kernels: "false".to_string(),
+            compare_kernels: CompareKernels::False,
         }
     }
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum CompareKernels {
+    False,
+    Full,
+    Efficient,
 }
 
 /// This function parses the config file for this program,

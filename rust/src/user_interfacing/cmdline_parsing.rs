@@ -38,6 +38,7 @@ pub struct KernelCommandsArgs {
     #[clap(long = "no-hard-link", action, group = "hard_link")]
     pub no_hard_link: bool,
 
-    #[clap(long = "compare-kernels", value_parser = ["false", "true", "efficient"])]
+    #[clap(long = "compare-kernels",
+           value_parser = ["false", "full", "efficient"])]
     pub compare_kernels: Option<String>,
 }

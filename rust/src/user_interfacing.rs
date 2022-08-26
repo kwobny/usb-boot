@@ -5,8 +5,11 @@ mod config_parsing;
 mod tests;
 
 use std::{io, ffi::OsString, env};
+use std::borrow::Borrow;
 use clap::{Parser, ErrorKind};
 use cmdline_parsing::{Cli, Commands, KernelCommandsArgs};
+
+use self::config_parsing::CompareKernels;
 
 #[derive(Debug)]
 pub enum CompareKernelsOption {
@@ -147,14 +150,17 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
                 _ => panic!(), // if (true, true)
             };
             let compare_kernels = match compare_kernels {
-                None => &config_contents.default_options.compare_kernels[..],
-                Some(x) => &x[..],
-            };
-            let compare_kernels = match compare_kernels {
-                "false" => None,
-                "true" => Some(CompareKernelsOption::Full),
-                "efficient" => Some(CompareKernelsOption::Efficient),
-                _ => panic!(),
+                None => match config_contents.default_options.compare_kernels {
+                    CompareKernels::False => None,
+                    CompareKernels::Full => Some(CompareKernelsOption::Full),
+                    CompareKernels::Efficient => Some(CompareKernelsOption::Efficient),
+                },
+                Some(x) => match x.borrow() {
+                    "false" => None,
+                    "full" => Some(CompareKernelsOption::Full),
+                    "efficient" => Some(CompareKernelsOption::Efficient),
+                    _ => panic!(),
+                },
             };
 
             OperationRequest::ChangeKernel(ChangeKernel {

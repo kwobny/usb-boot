@@ -25,6 +25,13 @@ fn interact_with_user_interactive() {
     let cmdline = get_cmdline_args().expect("invalid cmdline arguments");
     let result = interact_with_user_provided_cmdline(TEST_CONFIG, cmdline);
     println!("{:#?}", result);
+    if let Err(x) = result {
+        if let UserInteractError::CliIOError { source: details } |
+            UserInteractError::InvalidCommandLineArguments { details } = x
+        {
+            details.print().unwrap();
+        }
+    }
 }
 
 #[test]

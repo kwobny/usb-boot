@@ -7,6 +7,8 @@ use std::path::Path;
 use anyhow::Context;
 use user_interfacing::{OperationRequest, UserInteractError, ChangeKernel};
 
+// CONSTANTS
+
 const DEFAULT_CONFIG_FILE: &str = "/etc/usb-boot/usbbootmgr.toml";
 const FILE_UTILITY: &str = "/usr/bin/file";
 const MKINITCPIO_PROGRAM: &str = "/usr/bin/mkinitcpio";

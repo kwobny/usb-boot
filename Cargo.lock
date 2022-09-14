@@ -73,6 +73,9 @@ dependencies = [
 [[package]]
 name = "fullsystemimage"
 version = "0.1.0"
+dependencies = [
+ "clap",
+]
 
 [[package]]
 name = "hashbrown"

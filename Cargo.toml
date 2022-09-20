@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "usbbootmgr",
+    "custom_package_manager",
 ]
 
 [profile.release]

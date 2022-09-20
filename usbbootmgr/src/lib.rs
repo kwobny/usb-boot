@@ -1,5 +1,4 @@
 mod user_interfacing;
-mod custom_package_manager;
 
 use std::{process::Command, fs};
 use std::io;

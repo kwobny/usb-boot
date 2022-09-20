@@ -17,6 +17,4 @@ die() {
 cd "$(dirname "$(realpath -e "$0")")" ||
     die 'failed to cd into where the build script is located.'
 
-cd rust || die 'failed to cd into directory containing rust code.'
-
 cargo build --release || die 'failed to build rust code.'

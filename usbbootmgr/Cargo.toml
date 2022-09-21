@@ -1,5 +1,5 @@
 [package]
-name = "usb_boot"
+name = "usbbootmgr"
 version = "0.2.0"
 edition = "2021"
 
@@ -14,6 +14,3 @@ toml = "0.5.9"
 [dependencies.serde]
 version = "1.0.144"
 features = ["derive"]
-
-[profile.release]
-lto = "thin"

@@ -1,0 +1,6 @@
+run = "echo 'no run script for now'"
+
+[nix]
+
+[nix.channel]
+channel = "stable-22_05"

@@ -1,4 +1,5 @@
 mod user_interfacing;
+mod command_completion;
 
 use std::{process::Command, fs::{self, File}};
 use std::io::{self, BufReader, Read};

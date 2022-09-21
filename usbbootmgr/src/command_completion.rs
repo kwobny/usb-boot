@@ -39,6 +39,24 @@ struct ArgsState<'a> {
     possible_options: &'a [CmdlineOption<'a>],
     possible_subcommands: &'a [Subcommand<'a>],
 }
+enum SubcommandState<'a> {
+    BeforeSubcommand {
+        possible_subcommands: &'a [Subcommand<'a>],
+    },
+    DuringSubcommand {
+        subcommand: &'a Subcommand<'a>,
+        current_positional_argument: u32,
+    },
+}
+struct CleanState<'a> {
+    subcommand: SubcommandState<'a>,
+    possible_options: &'a [CmdlineOption<'a>],
+}
+enum ArgsState<'a> {
+    ExpectingOptionArgument(CleanState<'a>),
+    Clean(CleanState<'a>),
+    InvalidSyntax,
+}
 impl<'a> ArgsState<'a> {
     fn new(
         config: &'a CompleteConfig,
@@ -51,9 +69,13 @@ impl<'a> ArgsState<'a> {
 // This function must not be called on the final, incomplete argument.
 fn fold_args(state: &mut ArgsState, current_arg: &str) {
     // Check if the previous option was expecting an argument.
-    if state.is_expecting_option_argument {
-        state.is_expecting_option_argument = false;
-        return;
+    let clean_state = match state {
+        ArgsState::ExpectingOptionArgument(previous_state) => {
+            *state = ArgsState::Clean(previous_state);
+            return;
+        },
+        ArgsState::Clean(x) => x,
+        ArgsState::
     }
 
     // The state is a clean slate.
@@ -61,12 +83,13 @@ fn fold_args(state: &mut ArgsState, current_arg: &str) {
     // Check if the current argument is an option. If it is, then set
     // the expecting option argument state to true if the option expects
     // an argument.
-    if let Some(found) = state.possible_options.iter().find(
+    if let Some(found) = clean_state.possible_options.iter().find(
         |x| x.name == current_arg
     ) {
-        state.is_expecting_option_argument = match found.option_kind {
-            CmdlineOptionKind::None => false,
-            CmdlineOptionKind::Required(_) => true,
+        *state = match found.option_kind {
+            CmdlineOptionKind::None => state,
+            CmdlineOptionKind::Required(_) =>
+                ArgsState::ExpectingOptionArgument(clean_state),
         };
         return;
     }
@@ -74,24 +97,30 @@ fn fold_args(state: &mut ArgsState, current_arg: &str) {
     // Current arg is not an option, so it must be a positional
     // argument or subcommand.
 
-    if let Some((_, index)) = state.subcommand.as_mut() {
-        // Current argument is supposed to be a positional argument to
-        // a subcommand.
-        *index += 1;
-    } else {
-        // Current argument is supposed to be a subcommand.
-        if let Some(found) = state.possible_subcommands.iter().find(
-            |x| x.name == current_arg
-        ) {
-            state.subcommand = Some((found, 0));
-            state.possible_options = &found.possible_options;
-            return;
-        } else {
-            // Current argument is not a subcommand.
-            // This is invalid syntax, but for now just continue like it's
-            // all right.
-            return;
-        }
+    match clean_state.subcommand {
+        SubcommandState::DuringSubcommand {
+        } => {
+            // Current argument is supposed to be a positional argument to
+            // a subcommand.
+            *index += 1;
+        },
+        SubcommandState::BeforeSubcommand {
+            possible_subcommands,
+        } => {
+            // Current argument is supposed to be a subcommand.
+            if let Some(found) = state.possible_subcommands.iter().find(
+                |x| x.name == current_arg
+            ) {
+                state.subcommand = Some((found, 0));
+                state.possible_options = &found.possible_options;
+                return;
+            } else {
+                // Current argument is not a subcommand.
+                // This is invalid syntax, but for now just continue like it's
+                // all right.
+                return;
+            }
+        },
     }
 
     todo!();

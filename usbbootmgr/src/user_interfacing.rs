@@ -4,6 +4,7 @@ mod config_parsing;
 #[cfg(test)]
 mod tests;
 
+use std::path::PathBuf;
 use std::{io, ffi::OsString, env};
 use std::borrow::Borrow;
 use clap::{Parser, ErrorKind};
@@ -157,6 +158,7 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
                 Commands::UpdateKernel { .. } => {
                     config_contents.upstream_kernel
                 },
+                _ => panic!(),
             };
 
             let boot_kernel = config_contents.boot_kernel;
@@ -191,8 +193,13 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
             })
         },
         Commands::DeployBootFiles => {
+            let deploy_config = config_contents.deploy_boot_files;
             OperationRequest::DeployBootFiles(DeployBootFiles {
-                
+                destination_block_device: deploy_config
+                    .destination_block_device.map(PathBuf::from),
+                block_device_mount_point: deploy_config.mount_point.into(),
+                boot_files_source: deploy_config.source_directory.into(),
+                boot_files_destination: deploy_config.destination_directory.into(),
             })
         },
     };

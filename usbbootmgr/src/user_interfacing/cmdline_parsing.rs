@@ -27,7 +27,9 @@ pub enum Commands {
     UpdateKernel {
         #[clap(flatten)]
         shared_args: KernelCommandsArgs,
-    }
+    },
+    #[clap(name = "deploy-boot-files")]
+    DeployBootFiles,
 }
 
 #[derive(Args, Debug)]

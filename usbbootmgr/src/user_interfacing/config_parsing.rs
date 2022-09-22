@@ -15,8 +15,20 @@ pub struct ConfigContents {
     pub upstream_kernel: String,
     pub mkinitcpio_preset: String,
 
+    pub deploy_boot_files: DeployBootFilesOptions,
+
     #[serde(default)]
     pub default_options: DefaultOptions,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "kebab-case")]
+pub struct DeployBootFilesOptions {
+    pub destination_block_device: Option<String>,
+    pub mount_point: String,
+    pub source_directory: String,
+    pub destination_directory: String,
 }
 
 #[derive(Deserialize, Debug)]

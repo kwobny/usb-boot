@@ -27,8 +27,27 @@ pub struct ChangeKernel {
 }
 
 #[derive(Debug)]
+pub struct DeployBootFiles {
+    /// The block device file that contains
+    /// the filesystem to deploy the boot files to.
+    pub destination_block_device: Option<PathBuf>,
+    /// The place to mount the block device / the
+    /// place where the block device is mounted on.
+    pub block_device_mount_point: PathBuf,
+    /// The path to the directory containing the boot
+    /// files to copy from, relative to the root
+    /// directory.
+    pub boot_files_source: PathBuf,
+    /// The path to the directory to copy the boot files
+    /// to, relative to the block device mount point
+    /// / the root of the block device file system.
+    pub boot_files_destination: PathBuf,
+}
+
+#[derive(Debug)]
 pub enum OperationRequest {
     ChangeKernel(ChangeKernel),
+    DeployBootFiles(DeployBootFiles),
 }
 
 /// A type representing an error that occurred while trying to
@@ -169,6 +188,11 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
                 hard_link: do_hard_link,
                 mkinitcpio_preset,
                 compare_kernels,
+            })
+        },
+        Commands::DeployBootFiles => {
+            OperationRequest::DeployBootFiles(DeployBootFiles {
+                
             })
         },
     };

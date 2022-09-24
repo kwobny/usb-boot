@@ -31,18 +31,18 @@ pub struct ChangeKernel {
 pub struct DeployBootFiles {
     /// The block device file that contains
     /// the filesystem to deploy the boot files to.
-    pub destination_block_device: Option<PathBuf>,
+    pub destination_block_device: Option<String>,
     /// The place to mount the block device / the
     /// place where the block device is mounted on.
-    pub block_device_mount_point: PathBuf,
+    pub block_device_mount_point: String,
     /// The path to the directory containing the boot
     /// files to copy from, relative to the root
     /// directory.
-    pub boot_files_source: PathBuf,
+    pub boot_files_source: String,
     /// The path to the directory to copy the boot files
     /// to, relative to the block device mount point
     /// / the root of the block device file system.
-    pub boot_files_destination: PathBuf,
+    pub boot_files_destination: String,
 }
 
 #[derive(Debug)]
@@ -195,11 +195,10 @@ fn interact_with_user_provided_cmdline<C, T>(default_config_file: &str, cmdline:
         Commands::DeployBootFiles => {
             let deploy_config = config_contents.deploy_boot_files;
             OperationRequest::DeployBootFiles(DeployBootFiles {
-                destination_block_device: deploy_config
-                    .destination_block_device.map(PathBuf::from),
-                block_device_mount_point: deploy_config.mount_point.into(),
-                boot_files_source: deploy_config.source_directory.into(),
-                boot_files_destination: deploy_config.destination_directory.into(),
+                destination_block_device: deploy_config.destination_block_device,
+                block_device_mount_point: deploy_config.mount_point,
+                boot_files_source: deploy_config.source_directory,
+                boot_files_destination: deploy_config.destination_directory,
             })
         },
     };

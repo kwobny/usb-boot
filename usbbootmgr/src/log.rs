@@ -34,7 +34,6 @@ fn process_input(mut content: String) -> Option<String> {
 
 /// This struct represents a possible form of a
 /// message to be logged.
-/// It converts all stuff to Strings.
 #[derive(Debug)]
 pub struct LogMessage(String);
 impl From<String> for LogMessage {

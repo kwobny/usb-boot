@@ -11,6 +11,9 @@ const FILE_UTILITY: &str = "/usr/bin/file";
 const MKINITCPIO_PROGRAM: &str = "/usr/bin/mkinitcpio";
 const MKINITCPIO_PRESETS_DIR: &str = "/etc/mkinitcpio.d";
 
+const MOUNT_PROGRAM: &str = "/usr/bin/mount";
+const UNMOUNT_PROGRAM: &str = "/usr/bin/umount";
+
 fn handle_user_interact_error(err: UserInteractError) -> Result<(), anyhow::Error> {
     use UserInteractError::*;
     match err {

@@ -1,4 +1,5 @@
 mod log;
+mod misc;
 mod user_interfacing;
 mod change_kernel;
 mod deploy_boot_files;

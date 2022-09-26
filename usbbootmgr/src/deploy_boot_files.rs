@@ -3,6 +3,7 @@ use std::{fs, io};
 
 use anyhow::Context;
 
+use crate::misc::AggregateError;
 use crate::{MOUNT_PROGRAM, UNMOUNT_PROGRAM};
 use crate::user_interfacing::DeployBootFiles;
 use crate::log;
@@ -11,7 +12,33 @@ use crate::log;
 pub enum DeployBootFilesError {
 }
 
-pub fn deploy_boot_files(details: DeployBootFiles) -> Result<(), anyhow::Error> {
+/// This function deploys boot files to the usb.
+/// It returns a Result that represents how the operation went.
+/// Ok(true) means everything went well.
+/// Ok(false) means that the operation failed, but the failure was
+/// an expected possibility and handled by this function.
+/// Err means that the operation failed because of an
+/// unexpected possibility that needs to be handled by the calling code.
+///
+/// ## Explanation of return type:
+/// This function is not just a function that deploys boot files,
+/// it's a function that also interacts with the user.
+/// In the Result type, Err generally means that something happened,
+/// which the calling code needs to handle. Ok means that there is
+/// nothing which the calling code needs to handle. An error could
+/// have occurred, but if the function handled and resolved it,
+/// that still leads to an Ok value.
+/// In this operation, there are certain errors which are predictable
+/// errors expected to occur once in a while. For these, this function
+/// itself handles it, and prints an error message. This function's
+/// job is to interact with the user, so that makes sense. These
+/// kinds of errors map to Ok(false) values because an error occurred,
+/// but this function handled and resolved them.
+/// But there are also errors which are possible but unexpected. Since
+/// they are unexpected to this function, they are not handled
+/// by this function and must be handled by the calling code.
+/// Therefore, they map to Err values.
+pub fn deploy_boot_files(details: DeployBootFiles) -> Result<bool, anyhow::Error> {
     let mut cleanup_level: u8 = 0;
 
     // Ok(true) means the thing ran well.
@@ -26,12 +53,12 @@ pub fn deploy_boot_files(details: DeployBootFiles) -> Result<(), anyhow::Error> 
         // Print operation details before continuing.
         log::info(format_args!(
             "\
-    Operation details:
-    Block device = {}
-    Mount point = {}
-    Source directory = {}
-    Destination directory = {}
-    ",
+Operation details:
+Block device = {}
+Mount point = {}
+Source directory = {}
+Destination directory = {}
+",
             match details.destination_block_device {
                 Some(ref x) => &x,
                 None => "None",
@@ -87,7 +114,7 @@ pub fn deploy_boot_files(details: DeployBootFiles) -> Result<(), anyhow::Error> 
                 },
                 Ok(x) => x,
             };
-            let status = Command::new("cp")
+            let status = Command::new("/usr/bin/cp")
                 .args(["--dereference", "-t", &details.boot_files_destination])
                 .args(entries.into_iter().map(|x| x.path()))
                 .status()
@@ -105,15 +132,13 @@ pub fn deploy_boot_files(details: DeployBootFiles) -> Result<(), anyhow::Error> 
             return Ok(false);
         }
 
-        log::info("Successfully updated usb boot files. Exiting");
-
         Ok(true)
     })();
-    let cleanup_result = (|| -> Result<(), anyhow::Error> {
+    let cleanup_result = (|| -> Result<bool, anyhow::Error> {
         macro_rules! cleanup_fence {
             () => {
                 if cleanup_level == 0 {
-                    return Ok(());
+                    return Ok(true);
                 } else {
                     cleanup_level -= 1;
                 }
@@ -121,22 +146,48 @@ pub fn deploy_boot_files(details: DeployBootFiles) -> Result<(), anyhow::Error> 
         }
 
         cleanup_fence!();
+
         // Unmount block device.
         log::info("Unmounting block device");
+        let status = Command::new(UNMOUNT_PROGRAM)
+            .arg(&details.block_device_mount_point)
+            .status()
+            .context("failed to invoke umount program")?;
+        if !status.success() {
+            log::error(status.to_string());
+            log::error("Failed to unmount block device.");
 
-        todo!();
+            return Ok(false);
+        }
+
+        Ok(true)
     })();
 
-    match result {
-        Ok(_) => {
-            log::info("Successfully updated usb boot files. Exiting");
-        },
-        Err(_) => {
-            log::error("Failed to update usb boot files. Exiting");
-        },
+    let mut errors = Vec::new();
+    let mut all_ended_well = true;
+    for res in [result, cleanup_result] {
+        match res {
+            Ok(x) => {
+                all_ended_well = all_ended_well && x;
+            },
+            Err(err) => {
+                errors.push(err);
+            },
+        }
     }
 
-    todo!();
+    let possible_aggregate_error = AggregateError::new(errors);
+
+    if all_ended_well && possible_aggregate_error.is_none() {
+        log::info("Successfully updated usb boot files. Exiting");
+    } else {
+        log::error("Failed to update usb boot files. Exiting");
+    }
+
+    match possible_aggregate_error {
+        Some(aggregate_error) => Err(aggregate_error.into()),
+        None => Ok(all_ended_well),
+    }
 }
 
 fn infallible_directory_entries(path: &str) -> io::Result<Vec<fs::DirEntry>> {

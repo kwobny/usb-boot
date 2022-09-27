@@ -29,6 +29,42 @@ fn process_input(mut content: String) -> Option<String> {
             content.push('\n');
         },
     }
+    // true -> return Some.
+    // false -> return None.
+    let result: bool = loop {
+        let last_char = match chars.next_back() {
+            Some(x) => x,
+            // There is no content to be printed.
+            None => break false,
+        };
+
+        if last_char == '\n' {
+            let second_to_last = chars.next_back();
+            if let Some('\n') = second_to_last {
+                // There is more than one newline character at the end.
+                // Remove one newline character.
+                content.pop();
+            } else {
+                // There is only one newline character at the end. Do nothing.
+            }
+            break true;
+        }
+
+        let remaining_str = chars.as_str();
+        let last_newline = remaining_str.rfind('\n');
+        let add_newline = if let Some(last_newline) = last_newline {
+            let asdf = &remaining_str[(last_newline+1)..];
+            let lol = asdf.trim_start_matches(['\t', ' ']);
+            !(lol.len() == 0)
+        } else {
+            true
+        };
+        if add_newline {
+            content.push('\n');
+        }
+
+        break true;
+    };
     Some(content)
 }
 

@@ -47,7 +47,10 @@ pub fn run() -> Result<(), anyhow::Error> {
             change_kernel::handle_change_kernel(details)
         },
         OperationRequest::DeployBootFiles(details) => {
-            deploy_boot_files::deploy_boot_files(details).map_err(anyhow::Error::from)
+            match deploy_boot_files::deploy_boot_files(details) {
+                Ok(_) => Ok(()),
+                Err(x) => Err(x.into()),
+            }
         },
     }
 }

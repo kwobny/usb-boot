@@ -4,9 +4,16 @@ use std::fmt;
 // to any of the logging functions and transforms it to be suitable
 // for logging.
 // Treatment of newlines at the end:
-//     No newline -> Add a newline at the end.
-//     1 newline -> Do nothing.
-//     2 or more newlines -> Remove a newline.
+//     n_f = max(1, n_i - 1),
+//     where n_i = the number of trailing newlines in the input,
+//     and n_f = the number of trailing newlines in the printed
+//     output.
+//     In other words: remove a newline from the end, but if
+//     the result has less than 1 trailing newline, make the result
+//     have 1 newline.
+//     Another description:
+//     1 or less newlines -> 1 newline.
+//     more than 1 newlines -> Remove a newline.
 // Returns None if there is no content to be logged.
 fn process_input(mut content: String) -> Option<String> {
     let mut chars = content.chars();
@@ -59,9 +66,8 @@ impl From<fmt::Arguments<'_>> for LogMessage {
 ///
 /// This function transforms the provided message a bit:
 /// Terminating newline behavior:
-///     No newline at the end -> Add a newline.
-///     1 newline at the end -> Do nothing.
-///     2 or more newlines at the end -> Remove 1 newline.
+///     1 or less newlines -> 1 newline.
+///     more than 1 newlines -> Remove a newline.
 ///     The reason for this behavior is to make it easier
 ///     to type multiline log messages. Without this, you
 ///     would have to type the end quote or a backslash in

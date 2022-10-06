@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/bin/bash
 
 # This script is configured by the ash script /boot/usb-boot-config.ash (in the root filesystem).
 # That config file is sourced into this script. It must define a few environment

@@ -68,6 +68,27 @@ Destination directory = {}
             details.boot_files_destination,
         ));
 
+        // Verify that files exist.
+        check_file_explicit(
+            details.destination_block_device,
+            FileTypeExt::is_block_device,
+            || format!(
+                "The block device file \"{}\" does not exist. \
+                Perhaps the usb is unplugged?",
+                details.destination_block_device,
+            ),
+            || "Failed to check if the block device exists.",
+            || format!(
+                "The file {} is not a block device file.",
+                details.destination_block_device,
+            ),
+        );
+        check_file_explicit(
+            details.block_device_mount_point,
+            FileType::is_dir,
+            || "",
+        );
+
         // Mount block device.
         if let Some(device) = details.destination_block_device {
             log::info("Mounting block device");
@@ -187,6 +208,59 @@ Destination directory = {}
     match possible_aggregate_error {
         Some(aggregate_error) => Err(aggregate_error.into()),
         None => Ok(all_ended_well),
+    }
+}
+
+fn check_file(
+    path: &str,
+    expected_filetype_filter: impl FnOnce(FileType) -> bool,
+) -> Result<bool, anyhow::Error> {
+    check_file_explicit(
+        path, expected_filetype_filter,
+        || format_args!(
+            "The {} (\"{}\") does not exist.",
+            $expected_file_type,
+            $file,
+        ),
+        || format_args!(
+            "Failed to check if the {} (\"{}\") exists.",
+            $expected_file_type,
+            $file,
+        ),
+        || format_args!(
+            "The file \"{}\" is not a {}.",
+            $file,
+            $expected_file_type,
+        ),
+    )
+}
+fn check_file_explicit(
+    path: &str,
+    expected_filetype_filter: impl FnOnce(FileType) -> bool,
+    not_found_message: impl FnOnce() -> impl Into<Cow::<str>>,
+    check_failed_message: impl FnOnce() -> impl Into<Cow::<str>>,
+    unexpected_filetype_message: impl FnOnce() -> impl Into<Cow::<str>>,
+) -> Result<bool, anyhow::Error> {
+    let metadata = fs::metadata(path);
+    let metadata = match metadata {
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound => {
+                    log::error(not_found_message());
+                },
+                _ => {
+                    log::error(format_args!("{}", err));
+                    log::error(check_failed_message());
+                },
+            }
+            return Ok(false);
+        },
+        Ok(x) => x,
+    };
+    let filetype_is_as_expected = expected_filetype_filter(metadata.file_type());
+    if ! filetype_is_as_expected {
+        log::error(unexpected_filetype_message());
+        return Ok(false);
     }
 }
 

@@ -10,6 +10,8 @@ install_file -d usb-boot.preset /etc/mkinitcpio.d/
 install_file -f mkinitcpio_image_filters/add_microcode \
     /usr/local/bin/embed_microcode_into_initramfs
 
+install_file -d reboot_with_kexec /usr/local/bin/
+
 install_file -f rust_build/release/usbbootmgr /usr/local/bin/usbbootmgr
 
 install_file -f aur/aur-remove /usr/local/bin/aur-remove

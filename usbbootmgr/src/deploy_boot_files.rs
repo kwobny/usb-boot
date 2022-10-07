@@ -1,3 +1,4 @@
+use std::num::NonZeroU8;
 use std::process::Command;
 use std::{fs, io};
 use std::fs::FileType;
@@ -9,6 +10,35 @@ use crate::misc::AggregateError;
 use crate::{MOUNT_PROGRAM, UNMOUNT_PROGRAM};
 use crate::user_interfacing::DeployBootFiles;
 use crate::log;
+
+#[derive(Clone, Copy, Debug)]
+enum OperationResult {
+    Success,
+    Failure(NonZeroU8),
+}
+impl OperationResult {
+    fn is_success(self) -> bool {
+        matches!(self, OperationResult::Success)
+    }
+    fn is_failure(self) -> bool {
+        ! self.is_success()
+    }
+
+    fn code(self) -> u8 {
+        match self {
+            OperationResult::Success => 0,
+            OperationResult::Failure(x) => x.get(),
+        }
+    }
+}
+macro_rules! operation_bail {
+    () => {
+        operation_bail!(1);
+    };
+    ($code:literal) => {
+        return Ok(OperationResult::Failure(NonZeroU8::new($code).unwrap()))
+    };
+}
 
 macro_rules! check_file_explicit {
     // Arguments are evaluated lazily.
@@ -31,14 +61,14 @@ macro_rules! check_file_explicit {
                         log::error($check_failed_message);
                     },
                 }
-                return Ok(1);
+                operation_bail!();
             },
             Ok(x) => x,
         };
         let filetype_is_as_expected = $expected_filetype_filter(&metadata.file_type());
         if ! filetype_is_as_expected {
             log::error($unexpected_filetype_message);
-            return Ok(1);
+            operation_bail!();
         }
     };
 }
@@ -75,9 +105,9 @@ macro_rules! check_file_explicit {
 pub fn deploy_boot_files(details: DeployBootFiles) -> Result<u8, anyhow::Error> {
     let mut cleanup_level: u8 = 0;
 
-    // Ok(0) means the thing ran well.
-    // Ok(> 0) means there was a user error along the way.
-    let result = (|| -> Result<u8, anyhow::Error> {
+    // Ok(Success) means the thing ran well.
+    // Ok(Failure) means there was a user error along the way.
+    let result = (|| -> Result<OperationResult, anyhow::Error> {
         macro_rules! advance_cleanup_level {
             () => {
                 cleanup_level += 1;
@@ -146,7 +176,7 @@ Destination directory = {}
                 log::error(status.to_string());
                 log::error("Failed to mount block device.");
 
-                return Ok(1);
+                operation_bail!();
             }
 
             advance_cleanup_level!();
@@ -171,7 +201,7 @@ Destination directory = {}
         if let Err(error) = result {
             log::error(error.to_string());
             log::error("Failed to remove old usb boot files.");
-            return Ok(1);
+            operation_bail!();
         }
 
         // Copy new files.
@@ -202,16 +232,16 @@ Destination directory = {}
         let copy_operation_result = copy_operation_result?;
         if copy_operation_result == false {
             log::error("Failed to copy new boot files to usb.");
-            return Ok(1);
+            operation_bail!();
         }
 
-        Ok(0)
+        Ok(OperationResult::Success)
     })();
-    let cleanup_result = (|| -> Result<u8, anyhow::Error> {
+    let cleanup_result = (|| -> Result<OperationResult, anyhow::Error> {
         macro_rules! cleanup_fence {
             () => {
                 if cleanup_level == 0 {
-                    return Ok(0);
+                    return Ok(OperationResult::Success);
                 } else {
                     cleanup_level -= 1;
                 }
@@ -230,10 +260,10 @@ Destination directory = {}
             log::error(status.to_string());
             log::error("Failed to unmount block device.");
 
-            return Ok(1);
+            operation_bail!();
         }
 
-        Ok(0)
+        return Ok(OperationResult::Success)
     })();
 
     let mut errors = Vec::new();
@@ -242,7 +272,7 @@ Destination directory = {}
     for (i, res) in [result, cleanup_result].into_iter().enumerate() {
         match res {
             Ok(x) => {
-                all_ended_well = all_ended_well && (x == 0);
+                all_ended_well = all_ended_well && x.is_success();
                 exit_codes[i] = Some(x);
             },
             Err(err) => {
@@ -263,10 +293,10 @@ Destination directory = {}
         Some(aggregate_error) => Err(aggregate_error.into()),
         None => {
             let [main_exit_code, cleanup_exit_code] = exit_codes.map(Option::unwrap);
-            Ok(if main_exit_code == 0 {
-                cleanup_exit_code
+            Ok(if main_exit_code.is_success() {
+                cleanup_exit_code.code()
             } else {
-                main_exit_code
+                main_exit_code.code()
             })
         },
     }

@@ -1,5 +1,7 @@
 use std::process::Command;
 use std::{fs, io};
+use std::fs::FileType;
+use std::os::unix::fs::FileTypeExt;
 
 use anyhow::Context;
 
@@ -10,6 +12,39 @@ use crate::log;
 
 #[derive(thiserror::Error, Debug)]
 pub enum DeployBootFilesError {
+}
+
+macro_rules! check_file_explicit {
+    // Arguments are evaluated lazily.
+    (
+        $path:expr,
+        $expected_filetype_filter:expr,
+        $not_found_message:expr,
+        $check_failed_message:expr,
+        $unexpected_filetype_message:expr $(,)?
+    ) => {
+        let metadata = fs::metadata($path);
+        let metadata = match metadata {
+            Err(err) => {
+                match err.kind() {
+                    io::ErrorKind::NotFound => {
+                        log::error($not_found_message);
+                    },
+                    _ => {
+                        log::error(format_args!("{}", err));
+                        log::error($check_failed_message);
+                    },
+                }
+                return Ok(false);
+            },
+            Ok(x) => x,
+        };
+        let filetype_is_as_expected = $expected_filetype_filter(&metadata.file_type());
+        if ! filetype_is_as_expected {
+            log::error($unexpected_filetype_message);
+            return Ok(false);
+        }
+    };
 }
 
 /// This function deploys boot files to the usb.
@@ -69,24 +104,35 @@ Destination directory = {}
         ));
 
         // Verify that files exist.
-        check_file_explicit(
-            details.destination_block_device,
-            FileTypeExt::is_block_device,
-            || format!(
-                "The block device file \"{}\" does not exist. \
-                Perhaps the usb is unplugged?",
-                details.destination_block_device,
-            ),
-            || "Failed to check if the block device exists.",
-            || format!(
-                "The file {} is not a block device file.",
-                details.destination_block_device,
-            ),
-        );
-        check_file_explicit(
-            details.block_device_mount_point,
+        if let Some(ref block_device) = details.destination_block_device {
+            check_file_explicit!(
+                block_device,
+                FileTypeExt::is_block_device,
+                format_args!(
+                    "The block device file \"{}\" does not exist. \
+                    Perhaps the usb is unplugged?",
+                    block_device,
+                ),
+                "Failed to check if the block device exists.",
+                format_args!(
+                    "The file {} is not a block device file.",
+                    block_device,
+                ),
+            );
+        }
+        check_file_explicit!(
+            &details.block_device_mount_point,
             FileType::is_dir,
-            || "",
+            "The mount point does not exist.",
+            "Failed to check if the mount point exists.",
+            "The mount point is not a directory.",
+        );
+        check_file_explicit!(
+            &details.boot_files_source,
+            FileType::is_dir,
+            "The source directory does not exist.",
+            "Failed to check if the source directory exists.",
+            "The source directory is not a directory."
         );
 
         // Mount block device.
@@ -107,11 +153,18 @@ Destination directory = {}
             advance_cleanup_level!();
         }
 
-        let combined_path = format_args!(
+        let combined_path = format!(
             "{}/{}",
             details.block_device_mount_point,
             details.boot_files_destination,
-        ).to_string();
+        );
+        check_file_explicit!(
+            &combined_path,
+            FileType::is_dir,
+            "The destination directory does not exist.",
+            "Failed to check if the destination directory exists.",
+            "The destination directory is not a directory.",
+        );
 
         // Remove old files.
         log::info("Removing all old boot files from usb");
@@ -208,59 +261,6 @@ Destination directory = {}
     match possible_aggregate_error {
         Some(aggregate_error) => Err(aggregate_error.into()),
         None => Ok(all_ended_well),
-    }
-}
-
-fn check_file(
-    path: &str,
-    expected_filetype_filter: impl FnOnce(FileType) -> bool,
-) -> Result<bool, anyhow::Error> {
-    check_file_explicit(
-        path, expected_filetype_filter,
-        || format_args!(
-            "The {} (\"{}\") does not exist.",
-            $expected_file_type,
-            $file,
-        ),
-        || format_args!(
-            "Failed to check if the {} (\"{}\") exists.",
-            $expected_file_type,
-            $file,
-        ),
-        || format_args!(
-            "The file \"{}\" is not a {}.",
-            $file,
-            $expected_file_type,
-        ),
-    )
-}
-fn check_file_explicit(
-    path: &str,
-    expected_filetype_filter: impl FnOnce(FileType) -> bool,
-    not_found_message: impl FnOnce() -> impl Into<Cow::<str>>,
-    check_failed_message: impl FnOnce() -> impl Into<Cow::<str>>,
-    unexpected_filetype_message: impl FnOnce() -> impl Into<Cow::<str>>,
-) -> Result<bool, anyhow::Error> {
-    let metadata = fs::metadata(path);
-    let metadata = match metadata {
-        Err(err) => {
-            match err.kind() {
-                io::ErrorKind::NotFound => {
-                    log::error(not_found_message());
-                },
-                _ => {
-                    log::error(format_args!("{}", err));
-                    log::error(check_failed_message());
-                },
-            }
-            return Ok(false);
-        },
-        Ok(x) => x,
-    };
-    let filetype_is_as_expected = expected_filetype_filter(metadata.file_type());
-    if ! filetype_is_as_expected {
-        log::error(unexpected_filetype_message());
-        return Ok(false);
     }
 }
 

@@ -10,10 +10,6 @@ use crate::{MOUNT_PROGRAM, UNMOUNT_PROGRAM};
 use crate::user_interfacing::DeployBootFiles;
 use crate::log;
 
-#[derive(thiserror::Error, Debug)]
-pub enum DeployBootFilesError {
-}
-
 macro_rules! check_file_explicit {
     // Arguments are evaluated lazily.
     (
@@ -35,22 +31,25 @@ macro_rules! check_file_explicit {
                         log::error($check_failed_message);
                     },
                 }
-                return Ok(false);
+                return Ok(1);
             },
             Ok(x) => x,
         };
         let filetype_is_as_expected = $expected_filetype_filter(&metadata.file_type());
         if ! filetype_is_as_expected {
             log::error($unexpected_filetype_message);
-            return Ok(false);
+            return Ok(1);
         }
     };
 }
 
 /// This function deploys boot files to the usb.
 /// It returns a Result that represents how the operation went.
-/// Ok(true) means everything went well.
-/// Ok(false) means that the operation failed, but the failure was
+/// The value inside Ok represents the exit code that this function
+/// wants the program to exit with.
+/// It also represents whether the operation went well or not.
+/// Ok(0) means everything went well.
+/// Ok(> 0) means that the operation failed, but the failure was
 /// an expected possibility and handled by this function.
 /// Err means that the operation failed because of an
 /// unexpected possibility that needs to be handled by the calling code.
@@ -67,18 +66,18 @@ macro_rules! check_file_explicit {
 /// errors expected to occur once in a while. For these, this function
 /// itself handles it, and prints an error message. This function's
 /// job is to interact with the user, so that makes sense. These
-/// kinds of errors map to Ok(false) values because an error occurred,
+/// kinds of errors map to Ok(> 0) values because an error occurred,
 /// but this function handled and resolved them.
 /// But there are also errors which are possible but unexpected. Since
 /// they are unexpected to this function, they are not handled
 /// by this function and must be handled by the calling code.
 /// Therefore, they map to Err values.
-pub fn deploy_boot_files(details: DeployBootFiles) -> Result<bool, anyhow::Error> {
+pub fn deploy_boot_files(details: DeployBootFiles) -> Result<u8, anyhow::Error> {
     let mut cleanup_level: u8 = 0;
 
-    // Ok(true) means the thing ran well.
-    // Ok(false) means there was a user error along the way.
-    let result = (|| -> Result<bool, anyhow::Error> {
+    // Ok(0) means the thing ran well.
+    // Ok(> 0) means there was a user error along the way.
+    let result = (|| -> Result<u8, anyhow::Error> {
         macro_rules! advance_cleanup_level {
             () => {
                 cleanup_level += 1;
@@ -147,7 +146,7 @@ Destination directory = {}
                 log::error(status.to_string());
                 log::error("Failed to mount block device.");
 
-                return Ok(false);
+                return Ok(1);
             }
 
             advance_cleanup_level!();
@@ -172,7 +171,7 @@ Destination directory = {}
         if let Err(error) = result {
             log::error(error.to_string());
             log::error("Failed to remove old usb boot files.");
-            return Ok(false);
+            return Ok(1);
         }
 
         // Copy new files.
@@ -203,16 +202,16 @@ Destination directory = {}
         let copy_operation_result = copy_operation_result?;
         if copy_operation_result == false {
             log::error("Failed to copy new boot files to usb.");
-            return Ok(false);
+            return Ok(1);
         }
 
-        Ok(true)
+        Ok(0)
     })();
-    let cleanup_result = (|| -> Result<bool, anyhow::Error> {
+    let cleanup_result = (|| -> Result<u8, anyhow::Error> {
         macro_rules! cleanup_fence {
             () => {
                 if cleanup_level == 0 {
-                    return Ok(true);
+                    return Ok(0);
                 } else {
                     cleanup_level -= 1;
                 }
@@ -231,18 +230,20 @@ Destination directory = {}
             log::error(status.to_string());
             log::error("Failed to unmount block device.");
 
-            return Ok(false);
+            return Ok(1);
         }
 
-        Ok(true)
+        Ok(0)
     })();
 
     let mut errors = Vec::new();
     let mut all_ended_well = true;
-    for res in [result, cleanup_result] {
+    let mut exit_codes = [None; 2];
+    for (i, res) in [result, cleanup_result].into_iter().enumerate() {
         match res {
             Ok(x) => {
-                all_ended_well = all_ended_well && x;
+                all_ended_well = all_ended_well && (x == 0);
+                exit_codes[i] = Some(x);
             },
             Err(err) => {
                 errors.push(err);
@@ -260,7 +261,14 @@ Destination directory = {}
 
     match possible_aggregate_error {
         Some(aggregate_error) => Err(aggregate_error.into()),
-        None => Ok(all_ended_well),
+        None => {
+            let [main_exit_code, cleanup_exit_code] = exit_codes.map(Option::unwrap);
+            Ok(if main_exit_code == 0 {
+                cleanup_exit_code
+            } else {
+                main_exit_code
+            })
+        },
     }
 }
 

@@ -4,6 +4,8 @@ mod user_interfacing;
 mod change_kernel;
 mod deploy_boot_files;
 
+use std::process::ExitCode;
+
 use user_interfacing::{OperationRequest, UserInteractError};
 
 const DEFAULT_CONFIG_FILE: &str = "/etc/usb-boot/usbbootmgr.toml";
@@ -33,22 +35,24 @@ fn handle_user_interact_error(err: UserInteractError) -> Result<(), anyhow::Erro
     }
 }
 
-pub fn run() -> Result<(), anyhow::Error> {
+pub fn run() -> Result<ExitCode, anyhow::Error> {
     let operation = user_interfacing::interact_with_user(DEFAULT_CONFIG_FILE);
     let operation = match operation {
         Err(err) => {
-            return handle_user_interact_error(err);
+            handle_user_interact_error(err)?;
+            return Ok(ExitCode::FAILURE);
         },
         Ok(x) => x,
     };
 
     match operation {
         OperationRequest::ChangeKernel(details) => {
-            change_kernel::handle_change_kernel(details)
+            change_kernel::handle_change_kernel(details)?;
+            return Ok(ExitCode::SUCCESS);
         },
         OperationRequest::DeployBootFiles(details) => {
             match deploy_boot_files::deploy_boot_files(details) {
-                Ok(_) => Ok(()),
+                Ok(x) => Ok(ExitCode::from(x)),
                 Err(x) => Err(x.into()),
             }
         },

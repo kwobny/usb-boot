@@ -45,9 +45,11 @@ macro_rules! check_file_explicit {
     (
         $path:expr,
         $expected_filetype_filter:expr,
-        $not_found_message:expr,
-        $check_failed_message:expr,
-        $unexpected_filetype_message:expr $(,)?
+        {
+            not_found: $not_found_message:expr,
+            check_failed: $check_failed_message:expr,
+            unexpected_filetype: $unexpected_filetype_message:expr $(,)?
+        } $(,)?
     ) => {
         let metadata = fs::metadata($path);
         let metadata = match metadata {
@@ -137,31 +139,37 @@ Destination directory = {}
             check_file_explicit!(
                 block_device,
                 FileTypeExt::is_block_device,
-                format_args!(
-                    "The block device file \"{}\" does not exist. \
-                    Perhaps the usb is unplugged?",
-                    block_device,
-                ),
-                "Failed to check if the block device exists.",
-                format_args!(
-                    "The file {} is not a block device file.",
-                    block_device,
-                ),
+                {
+                    not_found: format_args!(
+                        "The block device file \"{}\" does not exist. \
+                        Perhaps the usb is unplugged?",
+                        block_device,
+                    ),
+                    check_failed: "Failed to check if the block device exists.",
+                    unexpected_filetype: format_args!(
+                        "The file {} is not a block device file.",
+                        block_device,
+                    ),
+                },
             );
         }
         check_file_explicit!(
             &details.block_device_mount_point,
             FileType::is_dir,
-            "The mount point does not exist.",
-            "Failed to check if the mount point exists.",
-            "The mount point is not a directory.",
+            {
+                not_found: "The mount point does not exist.",
+                check_failed: "Failed to check if the mount point exists.",
+                unexpected_filetype: "The mount point is not a directory.",
+            },
         );
         check_file_explicit!(
             &details.boot_files_source,
             FileType::is_dir,
-            "The source directory does not exist.",
-            "Failed to check if the source directory exists.",
-            "The source directory is not a directory."
+            {
+                not_found: "The source directory does not exist.",
+                check_failed: "Failed to check if the source directory exists.",
+                unexpected_filetype: "The source directory is not a directory.",
+            },
         );
 
         // Mount block device.
@@ -190,9 +198,11 @@ Destination directory = {}
         check_file_explicit!(
             &combined_path,
             FileType::is_dir,
-            "The destination directory does not exist.",
-            "Failed to check if the destination directory exists.",
-            "The destination directory is not a directory.",
+            {
+                not_found: "The destination directory does not exist.",
+                check_failed: "Failed to check if the destination directory exists.",
+                unexpected_filetype: "The destination directory is not a directory.",
+            },
         );
 
         // Remove old files.

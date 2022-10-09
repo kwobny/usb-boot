@@ -228,7 +228,7 @@ Destination directory = {}
                 Ok(x) => x,
             };
             let status = Command::new("/usr/bin/cp")
-                .args(["--dereference", "-t", &details.boot_files_destination])
+                .args(["--dereference", "-t", &combined_path])
                 .args(entries.into_iter().map(|x| x.path()))
                 .status()
                 .context("failed to invoke cp program")?;

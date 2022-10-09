@@ -18,4 +18,12 @@ PATH_TO_CONFIG_FILE=/boot/usb-boot-config.ash
 # Base for template name for temporary file that will contain combined initrd image.
 COMBINED_INITRD_FILENAME_BASE=/run/usb-boot/combined_initrd_image
 
+error() {
+    printf "$1\n" >&2
+    exit 1
+}
+
+mkdir -p "$(dirname "$COMBINED_INITRD_FILENAME_BASE")" ||
+    error 'failed to make temporary file for the combined initrd image'
+
 bash /usr/local/lib/usb-boot/kexec_from_config "$PATH_TO_CONFIG_FILE" "$COMBINED_INITRD_FILENAME_BASE" || exit 1

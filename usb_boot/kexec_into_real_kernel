@@ -1,21 +1,13 @@
 #!/bin/ash
 
-# This script is configured by the ash script /boot/usb-boot-config.ash (in the root filesystem).
-# That config file is sourced into this script. It must define a few environment
-# variables listed below:
-# - CMDLINE: The kernel command line for the kernel to kexec into.
-# - KERNEL: The path to the kernel to kexec.
-# - INITRD: A string containing paths to initrd images to kexec, delimited
-#       by spaces.
-#       All initrd images are concatenated together into a combined image,
-#       which is then kexec'ed. Images specified earlier in the list are
-#       placed earlier in the combined image.
-#       Having multiple images is useful for things like loading microcode.
-# All paths are relative to the directory the config file is in.
-# This script cd's into the directory the config file is in before
-# carrying out operations.
-# Absolute filenames in the config file are not supported yet,
-# so for the moment, all paths should be relative paths.
+# This script kexecs into the real system kernel from the
+# initramfs environment. It is meant to be executed in the initramfs
+# environment.
+# This script uses the kexec_from_config script to do the actual
+# work. Look in that script for further information on how this script
+# works (for example, config file syntax and semantics).
+# The config file for the boot/kexec is /boot/usb-boot-config.ash (in the
+# root filesystem).
 
 # Print an error message and exit if the script attempts to expand an unset variable.
 set -u
@@ -24,31 +16,10 @@ set -u
 MAIN_SYSTEM_ROOT=/sysroot
 # Path to the config file relative to the main system root.
 PATH_TO_CONFIG_FILE=/boot/usb-boot-config.ash
-# Template for temporary filename that will contain combined initrd image.
-COMBINED_INITRD_FILENAME_TEMPLATE=/combined_initrd_image.XXXXXX
+# Base of template name for temporary file that will contain
+# combined initrd image.
+COMBINED_INITRD_FILENAME_TEMPLATE=/combined_initrd_image
 
-error() {
-    printf "$1\n" >&2
-    exit 1
-}
+config_file_path="$MAIN_SYSTEM_ROOT/$PATH_TO_CONFIG_FILE"
 
-config_file_leading_components="$(dirname "$PATH_TO_CONFIG_FILE")"
-config_file_base_name="$(basename "$PATH_TO_CONFIG_FILE")"
-
-cd "$MAIN_SYSTEM_ROOT/$config_file_leading_components" || error 'failed to cd into config file directory'
-source "./$config_file_base_name" || error 'failed to source config file'
-
-# Create a temporary file for the combined initrd image.
-combined_initrd_file="$(mktemp "$COMBINED_INITRD_FILENAME_TEMPLATE")" ||
-    error 'failed to make temporary file for the combined initrd image'
-
-# Write each initrd image to the temporary file.
-# INITRD is intentionally unquoted.
-cat $INITRD > "$combined_initrd_file" ||
-    error 'failed to create the combined initrd image'
-
-kexec -l "$KERNEL" --initrd="$combined_initrd_file" --append="$CMDLINE" || error 'failed to kexec load main kernel'
-# The script is currently in a directory on the main system root filesystem.
-# cd outside the main system root so that the main system root can be unmounted by systemd during kexec.
-cd /
-systemctl kexec || error 'failed to execute kexec into main system'
+/usr/local/lib/usb_initramfs/kexec_from_config "$config_file_path" "$COMBINED_INITRD_FILENAME_TEMPLATE" || exit 1

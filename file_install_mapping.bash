@@ -5,6 +5,7 @@
 
 install_file -d usb_boot/update_usb_boot /usr/local/bin/
 install_file -d usb_boot/kexec_into_real_kernel /etc/usb-boot/
+install_file -d usb_boot/kexec_from_config /usr/local/lib/usb-boot/
 install_to_directory usb_boot/mkinitcpio_hooks/* /etc/initcpio/install/
 install_file -d usb_boot/usb-boot.preset /etc/mkinitcpio.d/
 install_file -f usb_boot/mkinitcpio_image_filters/add_microcode \

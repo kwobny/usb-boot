@@ -3,6 +3,7 @@
 build() {
     add_file /etc/usb-boot/initrd-kexec-real-kernel.service /etc/systemd/system/initrd-kexec-real-kernel.service
     add_file /etc/usb-boot/kexec_into_real_kernel /usr/local/lib/usb_initramfs/kexec_into_real_kernel
+    add_file /usr/local/lib/usb-boot/kexec_from_config /usr/local/lib/usb_initramfs/kexec_from_config
 
     add_binary kexec
     add_systemd_unit kexec.target

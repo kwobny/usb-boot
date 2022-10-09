@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "usbbootmgr",
+    "usb_boot/usbbootmgr",
 ]
 
 [profile.release]

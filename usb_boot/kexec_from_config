@@ -1,0 +1,69 @@
+#!/bin/ash
+
+# This script executes a kexec operation according to a config file.
+# This script is meant to be called by another dedicated tool,
+# not by the user directly. This is partly because it is sensitive
+# to specific input from the arguments and is not totally secure against
+# invalid input.
+# It must be called with 2 arguments (in order):
+#     1. The path to the config file.
+#     2. The desired path of the file that the combined initrd
+#        is assembled in. This script will create a file at that
+#        path with 6 random characters added onto the name specified
+#        in this argument.
+# The config file is sourced into this script. It must be written in a
+# shell language that is compatible with the shell that executes this
+# script.
+# The config file must define the environment variables listed below:
+# - CMDLINE: The kernel command line for the kernel to kexec into.
+# - KERNEL: The path to the kernel to kexec.
+# - INITRD: A string containing paths to initrd images to kexec, delimited
+#       by spaces.
+#       All initrd images are concatenated together into a combined image,
+#       which is then kexec'ed. Images specified earlier in the list are
+#       placed earlier in the combined image.
+#       Having multiple images is useful for things like loading microcode.
+# All paths are relative to the directory the config file is in.
+# This script cd's into the directory the config file is in before
+# carrying out operations.
+# Absolute filenames in the config file are not supported yet,
+# so for the moment, all paths should be relative paths.
+
+# Print an error message and exit if the script attempts to expand an unset variable.
+set -u
+
+error() {
+    printf "$1\n" >&2
+    exit 1
+}
+
+# Exit if less than 2 arguments were provided to this script.
+if [ $# -lt 2 ]; then
+    error "expected 2 arguments, got $#"
+fi
+
+config_file_path="$1"
+combined_initrd_file_basename="$2"
+
+combined_initrd_filename_template="${combined_initrd_file_basename}.XXXXXX"
+config_file_leading_components="$(dirname "$config_file_path")"
+config_file_base_name="$(basename "$config_file_path")"
+
+cd "$config_file_leading_components" || error 'failed to cd into config file directory'
+source "./$config_file_base_name" || error 'failed to source config file'
+
+# Create a temporary file for the combined initrd image.
+combined_initrd_file="$(mktemp "$combined_initrd_filename_template")" ||
+    error 'failed to make temporary file for the combined initrd image'
+
+# Write each initrd image to the temporary file.
+# INITRD is intentionally unquoted.
+cat $INITRD > "$combined_initrd_file" ||
+    error 'failed to create the combined initrd image'
+
+kexec -l "$KERNEL" --initrd="$combined_initrd_file" --append="$CMDLINE" || error 'failed to kexec load main kernel'
+# cd into the root directory so that if the script was in another
+# filesystem before, the filesystem can get unmounted by systemd
+# during kexec.
+cd /
+systemctl kexec || error 'failed to execute kexec into main system'

@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# This script sets the kde reboot type to be used
+# FOR THE CURRENT BOOT ONLY.
+
+set -u
+
+REBOOT_TYPE_FILE=/run/usb-boot/reboot_type
+VALID_REBOOT_TYPES='normal|kexec'
+
+die() {
+    printf "$1\n" >&2
+    exit 1
+}
+
+if [[ $# -ne 1 ]]; then
+    die "Expected 1 argument, got $# arguments."
+fi
+
+reboot_type="$1"
+
+[[ "$reboot_type" =~ "$VALID_REBOOT_TYPES" ]] || {
+    die "Expected one of $VALID_REBOOT_TYPES, got $reboot_type."
+}
+
+mkdir -p "$(dirname "$REBOOT_TYPE_FILE")" || exit 1
+
+printf "$reboot_type" > "$REBOOT_TYPE_FILE" || exit 1

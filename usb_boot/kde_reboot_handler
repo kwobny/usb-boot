@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# This script reboots the computer either by using
+# kexec reboot or normal reboot. The kind of reboot
+# used depends on the value of some files.
+# This script is meant to be used as the reboot hook
+# in KDE. It is not meant to be called directly.
+# This script checks the contents of the file
+# $RUNTIME_REBOOT_TYPE_FILE to see which reboot kind
+# to use.
+#     "kexec" -> kexec reboot
+#     "normal" -> normal reboot
+#     anything else -> normal reboot
+# If that file does not exist, then the script falls
+# back to $DEFAULT_REBOOT_TYPE_FILE and does the above
+# process for that file. If that file doesn't exist,
+# then the script uses normal reboot by default.
+
+set -u
+
+RUNTIME_REBOOT_TYPE_FILE=/run/usb-boot/reboot_type
+DEFAULT_REBOOT_TYPE_FILE=/etc/usb-boot/reboot_type
+DEFAULT_KEXEC_USAGE=false
+
+use_kexec=
+check_and_set() {
+    if [[ -r "$1" ]]; then
+        local reboot_type="$(cat "$1")"
+        case "$reboot_type" in
+            kexec)
+                use_kexec=true
+                ;;
+            normal)
+                use_kexec=false
+                ;;
+            *)
+                use_kexec=false
+        esac
+        return 0
+    fi
+    return 1
+}
+
+check_and_set "$RUNTIME_REBOOT_TYPE_FILE" ||
+    check_and_set "$DEFAULT_REBOOT_TYPE_FILE" || {
+        use_kexec="$DEFAULT_KEXEC_USAGE"
+    }
+
+if [[ $use_kexec == true ]]; then
+    /usr/local/bin/reboot_with_kexec
+else
+    /usr/bin/systemctl reboot
+fi

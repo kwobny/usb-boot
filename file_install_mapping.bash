@@ -12,6 +12,8 @@ install_file -f usb_boot/mkinitcpio_image_filters/add_microcode \
     /usr/local/bin/embed_microcode_into_initramfs
 
 install_file -d usb_boot/reboot_with_kexec /usr/local/bin/
+install_file -d usb_boot/kde_reboot_handler /usr/local/lib/usb-boot/
+install_file -d usb_boot/kde_reboot /usr/local/bin
 
 install_file -f rust_build/release/usbbootmgr /usr/local/bin/usbbootmgr
 

@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt, iter};
 
 // This function processes the input given by the user
 // to any of the logging functions and transforms it to be suitable
@@ -18,10 +18,6 @@ use std::fmt;
 fn process_input(mut content: String) -> Option<String> {
     let mut chars = content.chars();
     match (chars.next_back(), chars.next_back()) {
-        (None, _) => {
-            // There is no content to be printed.
-            return None;
-        },
         (Some('\n'), Some('\n')) => {
             // There is more than one newline character at the end.
             // Remove one newline character.
@@ -30,7 +26,7 @@ fn process_input(mut content: String) -> Option<String> {
         (Some('\n'), _) => {
             // There is only one newline character at the end. Do nothing.
         },
-        (Some(_), _) => {
+        _ => {
             // There are no newline characters at the end.
             // Add a newline character.
             content.push('\n');
@@ -39,23 +35,64 @@ fn process_input(mut content: String) -> Option<String> {
     Some(content)
 }
 
+pub trait ToLogMessage {
+    fn normal(self) -> Option<LogMessage>
+        where
+            Self: Sized {
+        process_input(self.raw().0).map(LogMessage)
+    }
+    fn raw(self) -> LogMessage;
+}
+
 /// This struct represents a possible form of a
 /// message to be logged.
 #[derive(Debug)]
 pub struct LogMessage(String);
-impl From<String> for LogMessage {
-    fn from(contents: String) -> Self {
-        LogMessage(contents)
+impl ToLogMessage for LogMessage {
+    fn normal(self) -> Option<LogMessage>
+        where
+            Self: Sized {
+        Some(self)
+    }
+    fn raw(self) -> LogMessage {
+        self
     }
 }
-impl From<&str> for LogMessage {
-    fn from(contents: &str) -> Self {
-        LogMessage(contents.to_owned())
+impl ToLogMessage for String {
+    fn raw(self) -> LogMessage {
+        LogMessage(self)
     }
 }
-impl From<fmt::Arguments<'_>> for LogMessage {
-    fn from(contents: fmt::Arguments) -> Self {
-        LogMessage(fmt::format(contents))
+impl ToLogMessage for &str {
+    fn raw(self) -> LogMessage {
+        LogMessage(self.to_owned())
+    }
+}
+impl ToLogMessage for fmt::Arguments<'_> {
+    fn raw(self) -> LogMessage {
+        LogMessage(fmt::format(self))
+    }
+}
+impl ToLogMessage for usize {
+    fn normal(self) -> Option<LogMessage>
+        where
+            Self: Sized {
+        Some(self.raw())
+    }
+    fn raw(self) -> LogMessage {
+        let mut ret = String::with_capacity(self);
+        ret.extend(iter::repeat('\n').take(self));
+        LogMessage(ret)
+    }
+}
+impl ToLogMessage for () {
+    fn normal(self) -> Option<LogMessage>
+        where
+            Self: Sized {
+        Some(self.raw())
+    }
+    fn raw(self) -> LogMessage {
+        ToLogMessage::raw(1)
     }
 }
 
@@ -73,20 +110,12 @@ impl From<fmt::Arguments<'_>> for LogMessage {
 ///     would have to type the end quote or a backslash in
 ///     the same line as the last line of the message. With this,
 ///     you can now put the end quote on a separate line.
-pub fn info<T: Into<LogMessage>>(message: T) {
-    let contents = match process_input(message.into().0) {
-        None => return,
-        Some(x) => x,
-    };
-    print!("{contents}");
+pub fn info<T: ToLogMessage>(message: T) {
+    message.normal().map(|x| print!("{}", x.0));
 }
 /// Same as [`info`], except logs an error instead of info.
 /// Look there for more information about the semantics
 /// of this function.
-pub fn error<T: Into<LogMessage>>(message: T) {
-    let contents = match process_input(message.into().0) {
-        None => return,
-        Some(x) => x,
-    };
-    eprintln!("{contents}");
+pub fn error<T: ToLogMessage>(message: T) {
+    message.normal().map(|x| eprint!("{}", x.0));
 }
